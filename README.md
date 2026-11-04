@@ -44,7 +44,7 @@ The game was made to be seen from above, so past the level it draws nothing, and
 
 ## Building the skies
 
-`python tools/build_sky.py` rebuilds `res/` from an installed copy of the game: the dome the engine keeps for its editor, its material, the render config with the fix, and the five skies, drawn by the script. It needs numpy and Pillow.
+`python tools/build_sky.py` rebuilds `res/` from an installed copy of the game: the sky dome from the engine's editor and the material on it, the render config with the fix, and the five skies, drawn by the script. It needs numpy and Pillow.
 
 ## Tests
 
