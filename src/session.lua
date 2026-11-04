@@ -14,7 +14,7 @@ local helldiver = obsidian.module("src/helldiver")
 local M = {
 	active = false, api = nil, panel = nil, cam = nil, anchor = nil, pose = nil, alone = false,
 	music_time = 0, music_started = false, hidden = {}, flashlight = false, helldivers = "shown",
-	sky = "off", sky_brightness = 2, caption = "", caption_place = "bottom_left", caption_size = 40, last_keys = {},
+	sky = "off", sky_brightness = 1, caption = "", caption_place = "bottom_left", caption_size = 40, last_keys = {}, cape = true,
 	self_id = nil, solo = false,
 }
 
@@ -39,6 +39,9 @@ end
 -- The parts of the game's screen Photo Mode mutes (obsidian.ui.mute): the whole HUD, hints, the chat,
 -- the sample counter and the save icon.
 M.MUTED = { "hud", "hints", "chat", "samples", "save_icon" }
+M.SKY_BRIGHTNESS = 1
+M.MUSIC_DELAY, M.MUSIC_DB = 5, 0 -- seconds of quiet, then the track at its own level
+M.DETAIL = 10 -- how much farther the engine keeps detailed models, for a camera far from the game's own
 M.CHEST = 1.2 -- metres over the feet that an orbit and the focus aim at
 
 local function g(name) return rawget(_G, name) end
@@ -234,8 +237,16 @@ function M.start()
 	M.controls_hidden, M.sky_warned = false, false
 	M.helldivers, M.flashlight, M.hidden = "shown", false, {}
 	M.sky = M.default_sky()
-	M.sky_brightness = 2
+	M.sky_brightness = M.SKY_BRIGHTNESS
+	M.cape = true
 	helldiver.begin(api.game.my_unit())
+	-- The planet's fog as the mission set it, before any change, for the Fog slider.
+	look.planet_fog = nil
+	if api.world.planet_shading then
+		local fog = api.world.planet_shading("fog_depth_range")
+		if type(fog) == "table" and fog[1] and fog[2] then look.planet_fog = { fog[1], fog[2] } end
+	end
+	if api.world.detail then pcall(api.world.detail, M.DETAIL) end
 	if M.panel then M.panel:open(1) end
 	return true
 end
@@ -243,16 +254,34 @@ end
 local function show_helldivers()
 	for unit in pairs(M.hidden) do pcall(M.api.world.visible, unit, true) end
 	M.hidden = {}
+	helldiver.hidden = false
+end
+
+local function cape_unit()
+	local unit = M.api.game.my_unit()
+	return unit and M.api.world.cape_of and M.api.world.cape_of(unit) or nil
+end
+
+-- Shows or hides the player's cape, which is cloth and doesn't follow a change of size or place.
+function M.set_cape(on)
+	M.cape = on ~= false
+	local cape = cape_unit()
+	if cape and not helldiver.hidden then pcall(M.api.world.visible, cape, M.cape) end
 end
 
 -- Shown, "mine" or "all" hidden.
 function M.set_helldivers(which)
 	M.helldivers = which
 	show_helldivers()
-	if which == "shown" then return end
-	for _, p in ipairs(M.api.game.all_avatars()) do
-		if p.unit and (which == "all" or p.owned) and M.api.world.visible(p.unit, false) then M.hidden[p.unit] = true end
+	if which ~= "shown" then
+		for _, p in ipairs(M.api.game.all_avatars()) do
+			if p.unit and (which == "all" or p.owned) and M.api.world.visible(p.unit, false) then
+				M.hidden[p.unit] = true
+				if p.owned then helldiver.hidden = true end
+			end
+		end
 	end
+	if not M.cape and not helldiver.hidden then M.set_cape(false) end
 end
 
 function M.set_flashlight(on)
@@ -272,7 +301,15 @@ function M.stop()
 	mute(false)
 	pcall(music.stop)
 	pcall(api.music.resume)
+	-- Shown first, so the Helldiver goes back to the size it had, not the hidden one.
+	show_helldivers()
 	pcall(helldiver.restore, api)
+	if not M.cape then
+		local cape = cape_unit()
+		if cape then pcall(api.world.visible, cape, true) end
+		M.cape = true
+	end
+	if api.world.detail then pcall(api.world.detail, nil) end
 	M.set_looking(false)
 	gizmo.selected, gizmo.drag = nil, nil
 	pcall(api.world.time_scale, 1)
@@ -406,12 +443,10 @@ function M.frame(dt)
 	local name = M.supports("sky") and M.sky_name() or nil
 	look.extra = {}
 	if name then
+		-- The planet's fog covers the dome as it covers the level: Fog on the Look tab thins it.
 		local shown, why = sky.show(api, name, pose.position, M.sky_brightness)
 		if shown then
 			pose.far = math.max(pose.far or 0, sky.far())
-			-- The planet's fog closes in a few hundred metres away and would cover the dome: it reaches
-			-- past the dome while a sky shows, unless the player set a fog.
-			look.extra.fog_depth_range = { "vector2", { 60, sky.RADIUS * 1.6 } }
 		elseif not M.sky_warned then
 			M.sky_warned = true
 			obsidian.log("photo mode: sky " .. name .. " not shown: " .. tostring(why))
@@ -432,10 +467,10 @@ function M.frame(dt)
 	M.flare_at = M.sun_on_screen(pose)
 	if settings.get("music") and not M.music_started then
 		M.music_time = M.music_time + dt
-		if M.music_time >= settings.get("music_delay") then
+		if M.music_time >= M.MUSIC_DELAY then
 			M.music_started = true
 			-- The ship plays its own music, in a world of its own: it only comes back.
-			if M.place == "ship" then api.music.resume() else music.start(settings.get("music_db")) end
+			if M.place == "ship" then api.music.resume() else music.start(M.MUSIC_DB) end
 		end
 	end
 	music.tick(dt)
@@ -464,28 +499,42 @@ function M.settle_pose(dt)
 	end
 end
 
--- Sends a pose. Answers a line for the panel when it didn't go.
-function M.pose(id)
+-- Sends a pose. Answers a line for the panel when it didn't go. (M.pose is the camera's pose.)
+function M.set_pose(id)
 	local ok, why = helldiver.pose(id)
 	if ok then return nil end
 	if why == "no_helldiver" then return "No Helldiver to pose." end
 	return "The Helldiver can't take that pose here."
 end
 
--- Where the sun is on screen for the lens flare, or nil: off, behind the camera, or behind something.
+-- Toward the sun: the one set with Sun position, else the planet's, else the default sun of the Light
+-- tab when the planet's can't be read.
+function M.sun_dir()
+	local dir = look.sun_dir()
+	if dir then return dir end
+	local api = M.api
+	if api.world.sun then
+		local ok, planet = pcall(api.world.sun)
+		if ok and planet then return planet end
+	end
+	if not M.sun_warned then
+		M.sun_warned = true
+		obsidian.log("photo mode: the planet's sun direction can't be read; the flare uses the default sun")
+	end
+	return look.sun_dir(true)
+end
+
+-- Where the sun is on screen for the lens flare, or nil: off, below the horizon or behind the camera.
+-- The level's collision has unseen walls and ceilings, so nothing checks what stands in the way.
 function M.sun_on_screen(pose)
 	if (look.get("flare") or 0) <= 0 or not pose then return nil end
-	local api = M.api
-	local dir = look.sun_dir() or (api.world.sun and api.world.sun())
+	local dir = M.sun_dir()
 	if not dir or dir.z < -0.02 then return nil end
 	local f = camera.forward(pose.yaw, pose.pitch)
 	if f.x * dir.x + f.y * dir.y + f.z * dir.z <= 0.05 then return nil end
 	local p = pose.position
-	local x, y = api.world.to_screen({ x = p.x + dir.x * 800, y = p.y + dir.y * 800, z = p.z + dir.z * 800 })
+	local x, y = M.api.world.to_screen({ x = p.x + dir.x * 100, y = p.y + dir.y * 100, z = p.z + dir.z * 100 })
 	if not x then return nil end
-	local hit = api.world.raycast({ x = p.x + dir.x * 0.5, y = p.y + dir.y * 0.5, z = p.z + dir.z * 0.5 },
-		{ x = p.x + dir.x * 400, y = p.y + dir.y * 400, z = p.z + dir.z * 400 })
-	if hit then return nil end
 	return { x = x, y = y }
 end
 

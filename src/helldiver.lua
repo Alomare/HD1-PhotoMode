@@ -9,7 +9,7 @@
 --
 -- A pose is one of the game's animation events for a Helldiver, sent to the avatar. A stopped world
 -- doesn't play animations, so the game runs for a moment (Pose time) to blend it in, then stops again.
-local M = { unit = nil, base = nil, settle = 0 }
+local M = { unit = nil, base = nil, settle = 0, hidden = false }
 
 M.DEFAULTS = { scale = 1, side = 0, forward = 0, up = 0, turn = 0, pose = "game", pose_time = 0.6 }
 M.state = {}
@@ -110,11 +110,19 @@ function M.target(base, s)
 	return { pos = pos, rot = rot, scale = { x = base.scale.x * s.scale, y = base.scale.y * s.scale, z = base.scale.z * s.scale } }
 end
 
+-- The game puts the avatar where its mover is every frame, stopped or not, so the mover goes along.
 local function place(api, unit, t)
 	local U, V3, Q, W = g("Unit"), g("Vector3"), g("Quaternion"), g("World")
 	U.set_local_position(unit, 0, V3(t.pos.x, t.pos.y, t.pos.z))
 	U.set_local_rotation(unit, 0, Q.from_elements(t.rot[1], t.rot[2], t.rot[3], t.rot[4]))
-	U.set_local_scale(unit, 0, V3(t.scale.x, t.scale.y, t.scale.z))
+	-- A hidden Helldiver is shrunk to nothing by api.world.visible, and stays so.
+	local s = M.hidden and (api.world.SHRUNK or 1e-4) or 1
+	U.set_local_scale(unit, 0, V3(t.scale.x * s, t.scale.y * s, t.scale.z * s))
+	local Mover = g("Mover")
+	if Mover and type(U.mover) == "function" then
+		local ok, mover = pcall(U.mover, unit)
+		if ok and mover then pcall(Mover.set_position, mover, V3(t.pos.x, t.pos.y, t.pos.z)) end
+	end
 	local st = api.game.state()
 	local proxy = type(st) == "table" and st.world_proxy
 	local world = proxy and proxy:get_world()

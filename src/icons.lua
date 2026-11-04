@@ -99,9 +99,24 @@ M.film = join(box(2, 1.5, 14, 14.5, 1.4), line(4.4, 1.5, 4.4, 14.5, 1.2), line(1
 	{ 2.6, 3, 3.8, 3, 3.8, 4.4, 2.6, 4.4 }, { 2.6, 7.3, 3.8, 7.3, 3.8, 8.7, 2.6, 8.7 }, { 2.6, 11.6, 3.8, 11.6, 3.8, 13, 2.6, 13 },
 	{ 12.2, 3, 13.4, 3, 13.4, 4.4, 12.2, 4.4 }, { 12.2, 7.3, 13.4, 7.3, 13.4, 8.7, 12.2, 8.7 }, { 12.2, 11.6, 13.4, 11.6, 13.4, 13, 12.2, 13 })
 
+-- A gear: a ring with eight teeth.
+M.settings = (function()
+	local out = {}
+	for _, poly in ipairs(ring(8, 8, 5, 2.2, 16)) do out[#out + 1] = poly end
+	for i = 0, 7 do
+		local a = i * pi / 4
+		local ca, sa = cos(a), sin(a)
+		local px, py = -sa, ca
+		local inner, outer, half = 4.4, 7.4, 1.25
+		out[#out + 1] = { 8 + ca * inner - px * half, 8 + sa * inner - py * half, 8 + ca * outer - px * half, 8 + sa * outer - py * half,
+			8 + ca * outer + px * half, 8 + sa * outer + py * half, 8 + ca * inner + px * half, 8 + sa * inner + py * half }
+	end
+	return out
+end)()
+
 -- Where the API can't draw shapes, the nearest glyph.
 M.GLYPH = { camera = "weapons", lens = "search", look = "editor", light = "world", scene = "mission", helldiver = "player",
-	frame = "page", save = "run", film = "page" }
+	frame = "page", save = "run", film = "page", settings = "editor" }
 
 -- What a tab gives the API: the shapes, or with an older API the glyph.
 function M.of(name, api_version_ok)

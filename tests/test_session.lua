@@ -146,13 +146,13 @@ test("the_exploring_music_plays_after_its_delay_in_a_sound_world_of_its_own", fu
 		set_parameter = function(_, id, k, v) rec.music_volume = v end, is_playing = function() return true end,
 		set_listeners = function() end, set_listener_mode = function() end, stop = function(_, id) rec.stopped = id end })
 	session.start()
-	for _ = 1, 19 do session.frame(1) end
+	for _ = 1, 4 do session.frame(1) end
 	eq(#events, 0, "quiet at first")
 	session.frame(1.5)
 	eq(rec.world_flag, 2, "a world with sound and no physics")
 	eq(events[1][1], "own world sound")
 	eq(events[1][2], "music_threat", "the mission's exploring track")
-	near(rec.music_volume, 10 ^ (-6 / 20), "-6 dB", 1e-6)
+	near(rec.music_volume, 1, "at the track's own level", 1e-6)
 	session.frame(0.016)
 	eq(updates >= 1, true, "the world moves on while the game is stopped")
 	session.stop()

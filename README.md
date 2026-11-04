@@ -4,7 +4,7 @@ A photo mode for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomar
 
 Open it with **F7** or the **PHOTO MODE** row of the pause menu, during a mission or on the ship. On the ship, lights, skies, the time of day, screen dust and cloud shadows are greyed out: they come from a mission's content. Esc, F7 or the panel's close button leave it, and everything goes back as it was.
 
-It needs Obsidian API 1.27.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
+It needs Obsidian API 1.28.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
 
 ## Controls
 
@@ -30,23 +30,24 @@ The panel opens at the bottom right. The title bar moves it, the corner grip res
 
 - **Camera**: a camera lock, Free, Orbit (circles the Helldiver, or turns by itself for a turntable view) and Isometric (a fixed angle, with a telephoto lens or no perspective at all). Move and look speed, smoothing, how far the camera can go, and staying above the ground.
 - **Lens**: focal length presets from 14 to 200 mm, field of view, roll, depth of field (focused on the Helldiver or at a distance), exposure, vignette and bloom.
-- **Look**: ready-made filters, the planet's color grading on or off, a color laid over the picture, fog, glow, cloud shadows and the screen dust layer (off by default: it's drawn flat over the screen for the top-down view).
-- **Film**: grain in mono or color specks, a lens flare from the sun while it's in view, and a light leak from the corners. The game's shaders have none of these, so they're drawn over the picture, and photos keep them.
+- **Look**: ready-made filters, the planet's color grading on or off, a color laid over the picture, fog thickness from none to three times the planet's, fog color, cloud shadows and the screen dust layer (off by default: it's drawn flat over the screen for the top-down view). Filters leave the sun and the time alone, except the five that set a sun.
+- **Film**: grain in mono or color specks, a lens flare from the sun while it's in view, and a light leak from the left edge. The game's shaders have none of these, so they're drawn over the picture, and photos keep them.
 - **Light**: the time of day, blending the planet's dawn, day, dusk and night; the sun's direction, height, color and strength; shadow fill; the Helldiver's flashlight; a three-point lighting rig around the Helldiver, and up to eight placed lights, each with a color, brightness, range, a point or spot shape and shadows. Placed lights show as markers in the picture, left out of photos.
 - **Scene**: pause or slow motion, and a sky over the level, matching the time of day from the start.
-- **Helldiver**: the Helldivers shown or hidden with their armour and weapons; a pose from the game's own animations (salute, aiming, stratagem input, signals, sitting, downed and more), blended in by letting the game run for a moment; and the Helldiver's size, place and turn, which hold while the game is stopped.
+- **Helldiver**: the Helldivers shown or hidden with their armour and weapons, the cape shown or hidden, a pose from the game's own animations (salute, aiming, stratagem input, signals, sitting, downed and more) blended in by letting the game run for a moment, and the Helldiver's size, place and turn, which hold while the game is stopped. The cape is cloth and doesn't follow a change of size or place.
 - **Frame**: aspect ratio from 32:9 to 9:16, cut or kept with black bars, composition grids, and a caption in the game's title font.
-- **Photo**: PNG or JPEG, the folder, the music that starts after a while in Photo Mode (the mission's exploring track, or the ship's own music), the controls overlay, and the panel's opacity and scale.
+- **Export**: take a photo, PNG or JPEG, and the folder.
+- **Settings**: the music that starts a few seconds into Photo Mode (the mission's exploring track, or the ship's own music), the controls overlay, and the panel's opacity and scale.
 
 Every look value stays the planet's until changed; R on a row gives the planet's back.
 
 ## Pictures
 
-Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the game's window. The panel, the grid and the key guide are left out; a caption, black bars and the color over the picture stay in. The game has no screenshot call, so Photo Mode copies the window through Windows. In exclusive fullscreen the copy can come back black: borderless or windowed mode lets it through.
+Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the game's window in screen pixels, whatever the display scaling. The panel, the grid and the key guide are left out; a caption, black bars and the color over the picture stay in. The game has no screenshot call, so Photo Mode copies the window through Windows. In exclusive fullscreen the copy can come back black: borderless or windowed mode lets it through.
 
 ## Skies
 
-The game was made to be seen from above, so past the level it draws nothing, and the picture keeps smears of old frames there. The **Fix skies** option, on by default in the mod's options in Obsidian, clears that part of the picture each frame and adds five skies (day, dawn, dusk, night and overcast) for the Sky row of the Scene tab. While one shows, the fog reaches past it. It changes how the game starts up, so it takes effect at the next launch.
+The game was made to be seen from above, so past the level it draws nothing, and the picture keeps smears of old frames there. The **Fix skies** option, on by default in the mod's options in Obsidian, clears that part of the picture each frame and adds five skies (day, dawn, dusk, night and overcast) for the Sky row of the Scene tab. The planet's fog covers them as it covers the level; Fog on the Look tab thins it. It changes how the game starts up, so it takes effect at the next launch.
 
 ## Building the skies
 

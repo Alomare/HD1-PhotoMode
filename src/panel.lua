@@ -1,5 +1,4 @@
--- The controls, down the right of the screen in tabs: api.menu.panel. Each row says what it changes in
--- its help line.
+-- The controls in tabs: api.menu.panel. Each row's help line says what the row changes.
 local settings = obsidian.module("src/settings")
 local camera = obsidian.module("src/camera")
 local look = obsidian.module("src/look")
@@ -11,6 +10,8 @@ local icons = obsidian.module("src/icons")
 local helldiver = obsidian.module("src/helldiver")
 
 local M = {}
+
+M.OPACITY = 0.7 -- the panel background's opacity until the player changes it
 
 local function choices(list)
 	local out = {}
@@ -36,6 +37,8 @@ local function looked(k, extra)
 	return opts
 end
 
+local function percent(v) return string.format("%d%%", v * 100 + 0.5) end
+
 local function cam() return session.cam end
 
 local function clock(h)
@@ -48,31 +51,31 @@ local function camera_tab(page)
 	if not c then return end
 	page:choice("Mode", { choices = { { id = "free", label = "Free" }, { id = "orbit", label = "Orbit" }, { id = "isometric", label = "Isometric" } },
 		get = function() return c.mode end, set = function(v) camera.set_mode(c, v) page:refresh() end, default = "free",
-		help = "Free flies anywhere. Orbit circles a point, the Helldiver at first. Isometric looks down at a fixed angle, without perspective." })
-	page:slider("Move speed", kept("move_speed", { min = 1, max = 40, step = 1, format = "%d m/s", help = "How fast W A S D move the camera. Shift is four times faster, Alt four times slower." }))
-	page:slider("Look speed", kept("look_speed", { min = 0.2, max = 3, step = 0.1, format = "%.1f", help = "How far the camera turns for a move of the mouse with the right button held, or of a pad's right stick." }))
-	page:slider("Smoothing", kept("smoothing", { min = 0, max = 0.9, step = 0.05, format = "%.2f", help = "How long the camera takes to catch up with the keys and the mouse. 0 follows at once." }))
-	page:toggle("Invert vertical look", kept("invert", { help = "Moving the mouse up looks down." }))
-	page:toggle("Ground collision", kept("ground", { help = "Holds the camera above the ground." }))
+		help = "Free flies anywhere. Orbit circles a point, starting on the Helldiver. Isometric looks down at a fixed angle." })
+	page:slider("Move speed", kept("move_speed", { min = 1, max = 40, step = 1, format = "%d m/s", help = "Camera speed for W A S D. Shift moves four times faster and Alt four times slower." }))
+	page:slider("Look speed", kept("look_speed", { min = 0.2, max = 3, step = 0.1, format = "%.1f", help = "How far the camera turns when the mouse moves with the right button held, or when a pad's right stick moves." }))
+	page:slider("Smoothing", kept("smoothing", { min = 0, max = 0.9, step = 0.05, format = "%.2f", help = "Delay before the camera catches up with the keys and mouse. At 0 it follows at once." }))
+	page:toggle("Invert vertical look", kept("invert", { help = "Moving the mouse up turns the camera down." }))
+	page:toggle("Ground collision", kept("ground", { help = "Keeps the camera above the ground." }))
 	page:slider("Range", kept("range", { min = 20, max = 300, step = 10, format = function(v) return v >= 300 and "No limit" or string.format("%d m", v) end,
-		help = "How far the camera can go from where the Helldiver stood when Photo Mode opened. Past the level, nothing is drawn but the sky." }))
+		help = "Farthest the camera can go from where the Helldiver stood when Photo Mode opened. Past the edge of the level only the sky is drawn." }))
 	if c.mode == "orbit" then
 		page:slider("Distance", { min = 1.5, max = 80, step = 0.5, format = "%.1f m", get = function() return c.distance end, set = function(v) c.distance = v end, default = 6,
-			help = "How far the camera stays from the point it circles. The wheel and W S change it too." })
+			help = "Distance from the camera to the orbit point. The wheel and W S change it too." })
 		page:slider("Auto orbit", { min = -60, max = 60, step = 5, format = "%d deg/s", get = function() return c.spin or 0 end, set = function(v) c.spin = v end, default = 0,
-			help = "Orbit speed without input, for a turntable view. 0 stops it." })
+			help = "Circles the point without any input, like a turntable. 0 stops it." })
 	elseif c.mode == "isometric" then
 		page:choice("Projection", { choices = { { id = "telephoto", label = "Telephoto" }, { id = "orthographic", label = "Orthographic" } },
 			get = function() return c.projection end, set = function(v) c.projection = v end, default = "telephoto",
-			help = "Telephoto looks from far away with a narrow lens, nearly flat. Orthographic draws with no perspective at all; shadows and fog may look different." })
+			help = "Telephoto shoots from far away through a narrow lens, which looks almost flat. Orthographic removes perspective completely, and shadows and fog may change." })
 		page:slider("Angle", { min = 20, max = 75, step = 0.5, format = "%.1f deg", get = function() return c.iso_angle end, set = function(v) c.iso_angle = v end, default = -camera.ISO_PITCH,
-			help = "How steeply the view looks down. 35.3 degrees is a true isometric view." })
+			help = "How steeply the camera looks down. A true isometric view is 35.3 degrees." })
 		page:slider("Zoom", { min = 5, max = 250, step = 1, format = "%d m", get = function() return c.iso_zoom end, set = function(v) c.iso_zoom = v end, default = 30,
-			help = "How much of the level fits from the top of the screen to the bottom. Q and E turn the view by a quarter." })
+			help = "Height of the view in metres, from the top of the screen to the bottom. Q and E turn the view a quarter at a time." })
 	end
 	page:toggle("Lock camera", { get = function() return session.locked == true end, set = function(v) session.locked = v end, default = false,
-		help = "Keys, mouse and pad leave the camera where it is, for work on lights and the panel." })
-	page:action("Recenter on Helldiver", function() return session.recenter() end, { help = "Puts the camera, or the orbit point, next to the Helldiver." })
+		help = "Stops keys, mouse and pad from moving the camera, for setting up lights and panel values." })
+	page:action("Recenter on Helldiver", function() return session.recenter() end, { help = "Moves the camera, or the orbit point, back to the Helldiver." })
 end
 
 local function lens_tab(page)
@@ -80,60 +83,59 @@ local function lens_tab(page)
 	if not c then return end
 	page:choice("Focal length", { choices = FOCAL, get = function() return camera.focal_of(c.fov) end,
 		set = function(mm) c.fov = camera.fov_of(mm) c.fov_before = c.fov end,
-		help = "Common lens lengths, for a full-frame camera. The field of view below shows the exact angle." })
+		help = "Standard lens lengths on a full-frame camera. Field of view below shows the exact angle." })
 	page:slider("Field of view", { min = 10, max = 120, step = 1, format = function(v) return string.format("%d deg (%d mm)", v, camera.mm_of(v)) end, get = function() return c.fov end, set = function(v) c.fov = v c.fov_before = v end, default = 50,
-		help = "How wide the lens sees, from the top of the screen to the bottom. Low values zoom in. The wheel changes it in Free mode." })
+		help = "Vertical angle the lens takes in. Lower values zoom in. In Free mode the wheel changes it too." })
 	page:slider("Roll", { min = -45, max = 45, step = 1, format = "%d deg", get = function() return c.roll end, set = function(v) c.roll = v end, default = 0,
-		help = "Tips the picture to one side. Z and C roll it too." })
+		help = "Tilts the picture sideways. Z and C do the same." })
 	page:header("Depth of field")
 	page:toggle("Depth of field", { get = function() return look.state.dof == true end, set = function(v) look.set("dof", v) page:refresh() end, default = false,
-		help = "Blurs what's nearer and farther than the focus." })
+		help = "Blurs everything nearer or farther than the focus distance." })
 	if look.state.dof then
-		page:toggle("Autofocus on Helldiver", looked("focus_player", { help = "Focus distance follows the Helldiver as the camera moves. A double click in the picture focuses on the point under the cursor." }))
+		page:toggle("Autofocus on Helldiver", looked("focus_player", { help = "Keeps the Helldiver in focus as the camera moves. A double click in the picture focuses on the point under the cursor instead." }))
 		if not look.get("focus_player") then
-			page:slider("Focus distance", looked("focus", { min = 0.5, max = 100, step = 0.5, format = "%.1f m", help = "How far from the camera the picture is sharp." }))
+			page:slider("Focus distance", looked("focus", { min = 0.5, max = 100, step = 0.5, format = "%.1f m", help = "Distance from the camera to the sharp part of the picture." }))
 		end
 		page:slider("Focus range", looked("depth", { min = 0.5, max = 40, step = 0.5, format = "%.1f m", help = "Depth of the sharp zone around the focus distance." }))
-		page:slider("Blur", looked("blur", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "How strong the blur is outside the sharp part." }))
+		page:slider("Blur", looked("blur", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Strength of the blur outside the sharp zone." }))
 	end
 	page:header("Image")
-	page:slider("Exposure", looked("exposure", { min = 0.2, max = 4, step = 0.05, format = "%.2f", help = "How bright the whole picture is. R gives the planet's own back." }))
-	page:slider("Vignette", looked("vignette", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "How dark the corners get." }))
-	page:slider("Bloom threshold", looked("bloom", { min = 0, max = 1, step = 0.02, format = "%.2f", help = "How bright a part has to be to glow. Lower values make more of the picture glow." }))
+	page:slider("Exposure", looked("exposure", { min = 0.2, max = 4, step = 0.05, format = "%.2f", help = "Brightness of the whole picture. R restores the planet's value." }))
+	page:slider("Vignette", looked("vignette", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Darkens the corners of the picture." }))
+	page:slider("Bloom threshold", looked("bloom", { min = 0, max = 1, step = 0.02, format = "%.2f", help = "Brightness a surface needs before it glows. Lower values make more of the picture glow." }))
 end
 
 local function look_tab(page)
 	page:choice("Filter", { choices = choices(look.FILTERS), get = function() return look.state.filter or "none" end,
 		set = function(v) look.use_filter(v) page:refresh() end, default = "none",
-		help = "A ready-made look, made of the values below. Each can be changed after; None gives them all back to the planet." })
+		help = "Preset values for the rows on this tab, the Lens tab and the Film tab, each adjustable afterwards. Golden hour, Cold front, Overcast, Moonlight and Ember also set the sun on the Light tab. None restores the planet's look and leaves the sun and time alone." })
 	page:choice("Color grading", looked("grading", { choices = { { id = true, label = "On" }, { id = false, label = "Off" } },
-		help = "The planet's color grading. Off shows the unprocessed texture colors." }))
-	page:choice("Color overlay", looked("tint_color", { choices = COLORS, help = "A color laid over the whole picture, saved with the photo." }))
+		help = "The planet's color grading. Off shows the plain texture colors." }))
+	page:choice("Color overlay", looked("tint_color", { choices = COLORS, help = "Color laid over the whole picture. Photos keep it." }))
 	page:slider("Overlay strength", looked("tint", { min = 0, max = 0.6, step = 0.02, format = "%.2f", help = "Opacity of the color overlay. 0 turns it off." }))
-	page:choice("Fog", looked("fog", { choices = choices(look.FOGS), help = "How far the air stays clear before the fog closes in." }))
-	page:choice("Fog color", looked("fog_color", { choices = COLORS, help = "The color the distance fades to." }))
-	page:slider("Glow", looked("glow", { min = 0, max = 4, step = 0.1, format = "%.1f", help = "How brightly lights, screens and other glowing surfaces shine." }))
-	page:slider("Cloud shadows", looked("clouds", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("clouds") end, help = "How dark the shadows of passing clouds are on the ground." }))
-	page:slider("Screen dust", looked("dust", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("dust") end, help = "The planet's scrolling dust layer, drawn flat over the screen for the top-down view. Off by default in Photo Mode; R restores the planet's value." }))
+	page:slider("Fog", looked("fog", { min = 0, max = 3, step = 0.05, format = function(v) return v <= 0 and "None" or string.format("%d%%", v * 100 + 0.5) end,
+		help = "Fog thickness, where 100% is the planet's own fog and None clears it. Fog covers the sky as well." }))
+	page:choice("Fog color", looked("fog_color", { choices = COLORS, help = "Color that distant parts of the level fade to." }))
+	page:slider("Cloud shadows", looked("clouds", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("clouds") end, help = "Darkness of the cloud shadows moving across the ground." }))
+	page:slider("Screen dust", looked("dust", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("dust") end, help = "The planet's scrolling dust layer, made for the overhead camera and drawn flat over the screen. Off when Photo Mode opens; R restores the planet's value." }))
 end
 
 local GRAINS = choices(look.GRAINS)
 
 local function film_tab(page)
 	page:header("Grain")
-	page:slider("Grain", looked("grain", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Specks over the picture, like film or a high ISO. 0 turns them off." }))
+	page:slider("Grain", looked("grain", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Fine specks over the picture, like film or a high ISO. 0 turns them off." }))
 	page:choice("Grain type", looked("grain_type", { choices = GRAINS, help = "Mono specks are light and dark grey. Color specks are red, green and blue." }))
-	page:slider("Grain size", looked("grain_size", { min = 1, max = 4, step = 0.5, format = "%.1f px", help = "How big each speck is, on a 1080 line screen." }))
+	page:slider("Grain size", looked("grain_size", { min = 1, max = 3, step = 0.5, format = "%.1f px", help = "Size of each speck on a 1080-line screen." }))
 	page:header("Lens")
 	page:slider("Lens flare", looked("flare", { min = 0, max = 1, step = 0.05, format = "%.2f",
-		help = "A glow, a streak and rings from the sun while it's in view and not behind anything. Sun position on the Light tab moves it." }))
-	page:slider("Light leak", looked("leak", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Light spilling in from the corners, as through a worn camera body." }))
-	page:choice("Leak color", looked("leak_color", { choices = COLORS, help = "The color of the light leak." }))
-	page:label(function() return "Grain, flare and leak are drawn over the picture and kept in photos." end)
+		help = "Glow, streak and rings from the sun while it's in view. Sun position on the Light tab moves it." }))
+	page:slider("Light leak", looked("leak", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Light bleeding in from the left edge of the frame, as from a worn camera." }))
+	page:choice("Leak color", looked("leak_color", { choices = COLORS, help = "Color of the light leak." }))
 end
 
 local function alone_only()
-	return session.alone, "Only with nobody else in the lobby: the game moves the Helldiver back while it runs."
+	return session.alone, "Only with nobody else in the lobby. A running game moves the Helldiver back."
 end
 
 local function hd(k, extra)
@@ -145,23 +147,25 @@ end
 local function helldiver_tab(page)
 	page:choice("Visibility", { choices = { { id = "shown", label = "Shown" }, { id = "mine", label = "Hide player" }, { id = "all", label = "Hide all" } },
 		get = function() return session.helldivers end, set = function(v) session.set_helldivers(v) end, default = "shown",
-		help = "Hides this player's Helldiver, or every Helldiver, with armour and weapons, for a picture of the place alone." })
+		help = "Hides the player's Helldiver or every Helldiver, armour and weapons included." })
+	page:choice("Cape", { choices = { { id = true, label = "Shown" }, { id = false, label = "Hidden" } },
+		get = function() return session.cape ~= false end, set = function(v) session.set_cape(v) end, default = true,
+		help = "The cape is cloth and doesn't follow the Size, Turn or place changes below while the game is stopped. Hiding it avoids a stretched cape." })
 	page:header("Pose")
 	local poses = {}
 	for _, p in ipairs(helldiver.poses(helldiver.unit)) do poses[#poses + 1] = { id = p.id, label = p.label } end
 	page:choice("Pose", { choices = poses, get = function() return helldiver.get("pose") end,
-		set = function(v) return session.pose(v) end, default = "game",
-		help = "One of the game's own Helldiver animations. The game runs for the pose time to blend it in, then stops again." })
+		set = function(v) return session.set_pose(v) end, default = "game",
+		help = "One of the game's Helldiver animations. The game runs for the pose time to blend it in, then stops again." })
 	page:slider("Pose time", { min = 0.1, max = 3, step = 0.1, format = "%.1f s", default = helldiver.DEFAULTS.pose_time,
 		get = function() return helldiver.get("pose_time") end, set = function(v) helldiver.set("pose_time", v) end,
-		help = "How long the game runs after a pose is picked, which sets how far into the animation it stops." })
-	page:action("Play pose again", function() return session.pose(helldiver.get("pose")) end,
-		{ help = "Starts the pose over and runs it for the pose time, to stop at another moment of it." })
+		help = "How long the game runs after a pose is picked, which decides the moment of the animation it stops on." })
+	page:action("Play pose again", function() return session.set_pose(helldiver.get("pose")) end,
+		{ help = "Restarts the pose and runs it for the pose time." })
 	page:header("Size and place")
-	page:slider("Size", hd("scale", { min = 0.25, max = 3, step = 0.05, format = function(v) return string.format("%d%%", v * 100 + 0.5) end,
-		help = "How big the Helldiver is, with armour and weapons." }))
-	page:slider("Move sideways", hd("side", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver to the right, or to the left below 0." }))
-	page:slider("Move forward", hd("forward", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver the way it faces, or back below 0." }))
+	page:slider("Size", hd("scale", { min = 0.25, max = 3, step = 0.05, format = percent, help = "Size of the Helldiver, armour and weapons included." }))
+	page:slider("Move sideways", hd("side", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver right, or left below 0." }))
+	page:slider("Move forward", hd("forward", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver forward, or back below 0." }))
 	page:slider("Raise", hd("up", { min = -2, max = 5, step = 0.05, format = "%.2f m", help = "Lifts the Helldiver off the ground, or sinks it below 0." }))
 	page:slider("Turn", hd("turn", { min = -180, max = 180, step = 5, format = "%d deg", help = "Turns the Helldiver on the spot." }))
 	page:action("Reset Helldiver", function()
@@ -169,34 +173,34 @@ local function helldiver_tab(page)
 		helldiver.reset()
 		helldiver.set("pose_time", pose_time)
 		page:refresh()
-	end, { help = "Size, place and turn back to where the Helldiver stood. The pose stays." })
+	end, { help = "Restores the size, place and turn. The pose stays." })
 end
 
 local function light_page(l)
 	return function(page)
 		page:choice("Color", { choices = COLORS, get = function() return l.color end, set = function(v) l.color = v lights.update(l) end, default = "warm",
-			help = "The color of the light." })
+			help = "Color of the light." })
 		page:slider("Brightness", { min = 0, max = 20, step = 0.25, format = "%.2f", get = function() return l.intensity end, set = function(v) l.intensity = v lights.update(l) end, default = 3,
-			help = "How strong the light is." })
+			help = "Strength of the light." })
 		page:slider("Range", { min = 1, max = 60, step = 0.5, format = "%.1f m", get = function() return l.range end, set = function(v) l.range = v lights.update(l) end, default = 10,
-			help = "How far the light gets before it fades out." })
+			help = "Distance the light reaches before fading out." })
 		page:choice("Shape", { choices = { { id = "point", label = "Point" }, { id = "spot", label = "Spot" } }, get = function() return l.shape end,
 			set = function(v) l.shape = v lights.update(l) page:refresh() end, default = "point",
-			help = "A point lights all round. A spot lights a cone, aimed where the camera looked when the light was placed or aimed." })
+			help = "A point light shines in every direction. A spot shines in a cone, aimed where the camera looked when the light was placed." })
 		if l.shape == "spot" then
 			page:slider("Spot angle", { min = 10, max = 170, step = 5, format = "%d deg", get = function() return l.angle end, set = function(v) l.angle = v lights.update(l) end, default = 50,
-				help = "How wide the spot's cone is." })
+				help = "Width of the spot's cone." })
 			page:action("Aim with camera", function()
 				local p = session.pose
 				if p then l.yaw, l.pitch = p.yaw, p.pitch lights.update(l) end
-			end, { help = "Points the spot the way the camera looks now." })
+			end, { help = "Points the spot where the camera is looking." })
 		end
 		page:toggle("Shadows", { get = function() return l.shadows end, set = function(v) l.shadows = v lights.update(l) end, default = true,
-			help = "Whether the light casts shadows." })
+			help = "Lets the light cast shadows. Levels have unseen shapes that also block light; with Shadows off, the light passes through them." })
 		page:action("Place at camera", function()
 			local p = session.pose
 			if p then lights.move(l, session.ahead(3), p.yaw, p.pitch) end
-		end, { help = "Puts the light 3 m ahead of the camera." })
+		end, { help = "Moves the light 3 m in front of the camera." })
 		page:action("Remove light", function() lights.remove(l) return "Light removed" end, { help = "Deletes this light." })
 	end
 end
@@ -205,22 +209,22 @@ local function light_tab(page)
 	page:header("Time and sun")
 	page:toggle("Time override", { enabled = function() return session.supports("time") end, get = function() return look.state.time ~= nil end,
 		set = function(v) if v then look.set("time", look.get("time")) else look.clear("time") end page:refresh() end, default = false,
-		help = "Lights the level at an hour of your choice, blending the planet's dawn, day, dusk and night. Off, the mission's own time shows." })
+		help = "Lights the level at a chosen hour, blending the planet's dawn, day, dusk and night. Off shows the mission's own time." })
 	if look.state.time then
 		page:slider("Time of day", { enabled = function() return session.supports("time") end, min = 0, max = 24, step = 0.25, format = clock, get = function() return look.get("time") end, set = function(v) look.set("time", v) end,
-			help = "The hour. Night is at midnight, dawn at 6, day at noon and dusk at 18." })
+			help = "Night at 0:00, dawn at 6:00, day at 12:00, dusk at 18:00." })
 	end
 	page:toggle("Sun position", { get = function() return look.state.sun == true end, set = function(v) if v then look.set("sun", true) else look.clear("sun") end page:refresh() end,
-		default = false, help = "Direction, height, color and strength of the sunlight, in place of the planet's." })
+		default = false, help = "Replaces the planet's sunlight with the direction, height, color and brightness below." })
 	if look.state.sun then
-		page:slider("Sun direction", looked("sun_az", { min = 0, max = 355, step = 5, format = "%d deg", help = "The compass direction the sunlight comes from. Shadows turn with it." }))
-		page:slider("Sun height", looked("sun_height", { min = 2, max = 89, step = 1, format = "%d deg", help = "How high the sun stands. Low suns throw long shadows." }))
-		page:choice("Sun color", looked("sun_color", { choices = COLORS, help = "The color of the sunlight." }))
-		page:slider("Sun brightness", looked("sun_power", { min = 0, max = 20, step = 0.25, format = "%.2f", help = "How strong the sunlight is." }))
+		page:slider("Sun direction", looked("sun_az", { min = 0, max = 355, step = 5, format = "%d deg", help = "Compass direction the sunlight comes from. Shadows turn with it." }))
+		page:slider("Sun height", looked("sun_height", { min = 2, max = 89, step = 1, format = "%d deg", help = "Height of the sun above the horizon. A low sun throws long shadows." }))
+		page:choice("Sun color", looked("sun_color", { choices = COLORS, help = "Color of the sunlight." }))
+		page:slider("Sun brightness", looked("sun_power", { min = 0, max = 20, step = 0.25, format = "%.2f", help = "Strength of the sunlight." }))
 	end
-	page:slider("Shadow fill", looked("fill", { min = 0, max = 3, step = 0.05, format = "%.2f", help = "How much light reaches the parts in shadow." }))
+	page:slider("Shadow fill", looked("fill", { min = 0, max = 3, step = 0.05, format = "%.2f", help = "Light that reaches the shaded areas." }))
 	page:toggle("Helldiver flashlight", { get = function() return session.flashlight end, set = function(v) session.set_flashlight(v) end, default = false,
-		help = "Lights the Helldiver's flashlight, as on a night mission." })
+		help = "Turns on the Helldiver's flashlight, as on night missions." })
 	page:header("Lights")
 	page:action("Add light", function()
 		local p = session.pose
@@ -229,19 +233,19 @@ local function light_tab(page)
 		if not l then return why == "full" and ("At most " .. lights.MAX .. " lights.") or "The light couldn't be placed here." end
 		page:refresh()
 		return "Light added"
-	end, { enabled = function() return session.supports("lights") end, help = "Places a light 3 m ahead of the camera. Lights show as markers in the picture: click one to select it, then drag the colored handles to move it." })
+	end, { enabled = function() return session.supports("lights") end, help = "Places a light 3 m in front of the camera, shown as a marker. Click a marker to select the light, then drag the colored handles to move it." })
 	page:action("Three-point lighting", function()
 		local at, p = session.chest(), session.pose
 		if not (at and p) then return "No Helldiver to light." end
 		local made = lights.rig(session.api, at, p.yaw)
 		page:refresh()
 		return made > 0 and (made .. " lights added") or "No room for more lights."
-	end, { enabled = function() return session.supports("lights") end, help = "Adds a key, a fill and a rim light around the Helldiver, aimed at it, placed from the camera's side." })
+	end, { enabled = function() return session.supports("lights") end, help = "Adds a key light, a fill light and a rim light around the Helldiver, aimed at it from the camera's side." })
 	for _, l in ipairs(lights.list) do
-		page:page(function() return lights.name_of(l) end, light_page(l), { help = "Color, brightness, reach, shape and shadows of this light." })
+		page:page(function() return lights.name_of(l) end, light_page(l), { help = "Color, brightness, range, shape and shadows of this light." })
 	end
 	if #lights.list > 0 then
-		page:action("Remove all lights", function() lights.clear() page:refresh() end, { help = "Takes every placed light away." })
+		page:action("Remove all lights", function() lights.clear() page:refresh() end, { help = "Deletes every placed light." })
 	end
 end
 
@@ -253,45 +257,40 @@ local function scene_tab(page)
 			if session.api.world.time_scale(v) then settings.set("time", v) end
 		end, default = 0,
 		enabled = function() return session.alone, "Only with nobody else in the lobby." end,
-		help = "Pauses the game, runs it slowly, or lets it run. With other players in the lobby, it keeps running." })
-	local sky_off = "Turn on Fix skies in the options of Photo Mode in Obsidian, then start the game again."
+		help = "Pauses the game, slows it down or lets it run. With other players in the lobby the game keeps running." })
+	local sky_off = "Turn on Fix skies in Photo Mode's options in Obsidian, then restart the game."
+	local function sky_ok()
+		local ok, why = session.supports("sky")
+		if not ok then return false, why end
+		return sky.available(), sky_off
+	end
 	page:choice("Sky", { choices = { { id = "off", label = "Off" }, { id = "auto", label = "Matches the time" }, { id = "day", label = "Day" },
 		{ id = "dawn", label = "Dawn" }, { id = "dusk", label = "Dusk" }, { id = "night", label = "Night" }, { id = "overcast", label = "Overcast" } },
-		get = function() return session.sky end, set = function(v) session.sky = v end, default = "auto",
-		enabled = function()
-			local ok, why = session.supports("sky")
-			if not ok then return false, why end
-			return sky.available(), sky_off
-		end,
-		help = "A sky over the level, which the game never draws: clouds by day, stars by night." })
-	page:slider("Sky brightness", { min = 0, max = 6, step = 0.1, format = "%.1f", get = function() return session.sky_brightness end,
-		set = function(v) session.sky_brightness = v sky.set_brightness(v) end, default = 2,
-		enabled = function()
-			local ok, why = session.supports("sky")
-			if not ok then return false, why end
-			return sky.available(), sky_off
-		end,
-		help = "How bright the sky is." })
+		get = function() return session.sky end, set = function(v) session.sky = v end, default = "auto", enabled = sky_ok,
+		help = "A sky beyond the edge of the level, where the game draws nothing: clouds by day, stars by night. Fog hides it; lower Fog on the Look tab to see more." })
+	page:slider("Sky brightness", { min = 0, max = 4, step = 0.1, format = "%.1f", get = function() return session.sky_brightness end,
+		set = function(v) session.sky_brightness = v sky.set_brightness(v) end, default = session.SKY_BRIGHTNESS, enabled = sky_ok,
+		help = "Brightness of the sky." })
 end
 
 local function frame_tab(page)
-	page:choice("Aspect ratio", kept("aspect", { choices = choices(overlay.ASPECTS), help = "The shape of the picture, framed on the screen." }))
-	page:toggle("Letterbox bars", kept("bars", { help = "On, the picture keeps the screen's size with black bars around the frame. Off, the picture is cut to the frame." }))
-	page:choice("Grid", kept("grid", { choices = choices(overlay.GRIDS), help = "Lines for placing things, which the picture leaves out." }))
+	page:choice("Aspect ratio", kept("aspect", { choices = choices(overlay.ASPECTS), help = "Shape of the picture, outlined on the screen." }))
+	page:toggle("Letterbox bars", kept("bars", { help = "On keeps the full screen size with black bars around the frame. Off crops the photo to the frame." }))
+	page:choice("Grid", kept("grid", { choices = choices(overlay.GRIDS), help = "Composition lines, left out of photos." }))
 	page:input(function() return session.caption ~= "" and ("Caption: " .. session.caption) or "Caption" end,
-		function(text) session.caption = text end, { help = "Words written on the picture, in the game's title font." })
+		function(text) session.caption = text end, { help = "Text written on the picture in the game's title font." })
 	page:choice("Caption position", { choices = choices(overlay.CAPTION_PLACES), get = function() return session.caption_place end,
 		set = function(v) session.caption_place = v end, default = "bottom_left", help = "Where the caption sits in the frame." })
 	page:slider("Caption size", { min = 20, max = 120, step = 2, format = "%d", get = function() return session.caption_size end,
-		set = function(v) session.caption_size = v end, default = 40, help = "How tall the caption's letters are." })
+		set = function(v) session.caption_size = v end, default = 40, help = "Height of the caption letters." })
 	page:action("Clear caption", function() session.caption = "" end, { help = "Removes the caption." })
 end
 
-local function photo_tab(page)
-	page:action("Take photo", function() session.take_picture() end, { help = "Saves the picture without the controls. P does the same." })
+local function export_tab(page)
+	page:action("Take photo", function() session.take_picture() end, { help = "Saves the picture without the panel and markers. P does the same." })
 	page:choice("Format", kept("format", { choices = { { id = "png", label = "PNG" }, { id = "jpg", label = "JPEG" } },
-		help = "PNG keeps every pixel as it was. JPEG makes smaller files." }))
-	page:slider("JPEG quality", kept("quality", { min = 50, max = 100, step = 1, format = "%d", help = "Higher keeps more detail in a larger file." }))
+		help = "PNG keeps every pixel exactly. JPEG makes smaller files." }))
+	page:slider("JPEG quality", kept("quality", { min = 50, max = 100, step = 1, format = "%d", help = "Higher values keep more detail and make larger files." }))
 	page:label(function()
 		local folder = session.folder()
 		return folder and ("Saved in " .. folder) or "Pictures can't be saved in this game."
@@ -300,26 +299,25 @@ local function photo_tab(page)
 		local folder = session.folder()
 		if not folder then return "The folder isn't available." end
 		session.api.capture.open_folder(folder)
-	end, { help = "Opens the folder with the pictures in the file explorer." })
-	page:header("Music")
-	page:toggle("Music", kept("music", { help = "After a while in Photo Mode, plays the mission's exploring music. On the ship, the ship's own music comes back." }))
-	page:slider("Music delay", kept("music_delay", { min = 0, max = 120, step = 5, format = "%d s", help = "Seconds of silence before the music starts." }))
-	page:slider("Music level", kept("music_db", { min = -30, max = 0, step = 1, format = "%d dB", help = "How far below the full level the music plays." }))
-	page:header("Controls")
-	page:toggle("Controls overlay", kept("guide", { help = "The camera keys, at the bottom left. Left out of photos." }))
+	end, { help = "Opens the photo folder in File Explorer." })
+end
+
+local function settings_tab(page)
+	page:toggle("Music", kept("music", { help = "Plays the mission's exploration music a few seconds after Photo Mode opens. On the ship, the ship's music returns instead." }))
+	page:toggle("Controls overlay", kept("guide", { help = "The camera keys at the bottom left. Left out of photos." }))
 	page:header("Panel")
 	local function panel_call(name, ...)
 		local p = M.panel
 		if p and type(p[name]) == "function" then return p[name](p, ...) end
 	end
-	page:slider("Panel opacity", { min = 0.1, max = 1, step = 0.05, format = function(v) return string.format("%d%%", v * 100 + 0.5) end,
-		get = function() return panel_call("opacity") or 0.5 end, set = function(v) panel_call("set_opacity", v) end, default = 0.5,
+	page:slider("Panel opacity", { min = 0.1, max = 1, step = 0.05, format = percent,
+		get = function() return panel_call("opacity") or M.OPACITY end, set = function(v) panel_call("set_opacity", v) end, default = M.OPACITY,
 		help = "Opacity of the panel background. Rows and text stay solid." })
-	page:slider("Panel scale", { min = 0.6, max = 1.6, step = 0.05, format = function(v) return string.format("%d%%", v * 100 + 0.5) end,
+	page:slider("Panel scale", { min = 0.6, max = 1.6, step = 0.05, format = percent,
 		get = function() return panel_call("scale") or 1 end, set = function(v) panel_call("set_scale", v) end, default = 1,
-		help = "Size of the panel and everything in it. Drag the title bar to move the panel and the corner grip to resize it." })
+		help = "Size of the panel and everything in it. The title bar moves the panel and the corner grip resizes it." })
 	page:action("Reset panel position", function() panel_call("reset_place") end,
-		{ help = "Puts the panel back in the bottom right corner at the default size." })
+		{ help = "Returns the panel to the bottom right corner at the default size." })
 end
 
 -- Every setting back to the default, from the button in the panel's title bar. Lights stay.
@@ -328,8 +326,8 @@ function M.reset_all()
 	look.reset()
 	look.set("dust", 0)
 	session.caption, session.caption_place, session.caption_size = "", "bottom_left", 40
-	session.sky, session.sky_brightness = session.default_sky(), 2
-	sky.set_brightness(2)
+	session.sky, session.sky_brightness = session.default_sky(), session.SKY_BRIGHTNESS
+	sky.set_brightness(session.SKY_BRIGHTNESS)
 	helldiver.reset()
 	if M.panel then M.panel:refresh() end
 	return "All settings reset"
@@ -343,9 +341,10 @@ function M.make(api)
 	M.panel = api.menu.panel({
 		id = "photo",
 		title = "Photo Mode",
+		opacity = M.OPACITY,
 		status = session.status,
 		guide = { { keys = { "P" }, label = "Take photo" }, { keys = { "H" }, label = "Hide" } },
-		buttons = { { glyph = "reset", help = "Reset all settings to the defaults. Placed lights stay.", run = M.reset_all } },
+		buttons = { { glyph = "reset", help = "Resets every setting to the default. Placed lights stay.", run = M.reset_all } },
 		on_close = function() session.stop() end,
 		tabs = {
 			{ title = "Camera", icon = icon("camera"), build = camera_tab },
@@ -356,7 +355,8 @@ function M.make(api)
 			{ title = "Scene", icon = icon("scene"), build = scene_tab },
 			{ title = "Helldiver", icon = icon("helldiver"), build = helldiver_tab },
 			{ title = "Frame", icon = icon("frame"), build = frame_tab },
-			{ title = "Photo", icon = icon("save"), build = photo_tab },
+			{ title = "Export", icon = icon("save"), build = export_tab },
+			{ title = "Settings", icon = icon("settings"), build = settings_tab },
 		},
 	})
 	return M.panel

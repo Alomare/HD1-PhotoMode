@@ -19,7 +19,7 @@ M.CAPTION_PLACES = { { id = "bottom_left", label = "Bottom left" }, { id = "bott
 -- chromatic aberration (none of those names are in its render bundle), so these are shapes over the
 -- screen: specks for the grain, rings and a streak along the line from the sun through the middle of
 -- the screen for the flare, and soft discs of color from a corner for the light leak.
-M.GRAIN_MAX = 5000   -- specks on a 1920 by 1080 screen at full grain
+M.GRAIN_MAX = 9000   -- specks on a 1920 by 1080 screen at full grain
 M.FLARE_GHOSTS = {   -- along the line from the sun (0) through the middle (1): where, how big, color
 	{ t = 0.35, r = 34, c = { 255, 210, 150 }, a = 26, hex = true },
 	{ t = 0.62, r = 16, c = { 180, 220, 255 }, a = 34 },
@@ -43,28 +43,37 @@ function M.grain_count(amount, w, h)
 	return math.floor(math.min(1, amount) * M.GRAIN_MAX * (w * h) / (1920 * 1080) + 0.5)
 end
 
+-- Specks spread evenly: the screen is cut into a grid with one speck per cell, at a random spot in it,
+-- so none clump or leave bare patches. Each is faint, lighter or darker than the picture by a random
+-- amount that's small far more often than large, as film grain is.
 function M.draw_grain(kit, film, w, h, s)
 	local n = M.grain_count(film.grain or 0, w, h)
 	if n <= 0 then return 0 end
-	local size = math.max(1, (film.grain_size or 1.5) * s)
-	local strength = math.min(1, film.grain)
+	local size = math.max(1, (film.grain_size or 1) * s)
+	local strength = 0.5 + 0.5 * math.min(1, film.grain)
 	local random = math.random
-	for _ = 1, n do
-		local x, y = random() * w, random() * h
-		-- About the middle more often than the ends, as grain spreads.
-		local v = (random() + random() + random()) / 3
-		local alpha = (40 + 120 * math.abs(v - 0.5) * 2) * strength
-		if film.grain_type == "color" then
-			local pick = random(3)
-			local c = { 60, 60, 60 }
-			c[pick] = 255
-			kit:rect(x, y, size, size, { c[1], c[2], c[3], alpha })
-		else
-			local g = v > 0.5 and 255 or 0
-			kit:rect(x, y, size, size, { g, g, g, alpha })
+	local cell = math.sqrt(w * h / n)
+	local cols, rows = math.max(1, math.floor(w / cell)), math.max(1, math.floor(h / cell))
+	local cw, ch = w / cols, h / rows
+	local drawn = 0
+	for row = 0, rows - 1 do
+		for col = 0, cols - 1 do
+			local x, y = (col + random()) * cw, (row + random()) * ch
+			local v = (random() + random() + random() + random()) / 2 - 1
+			local alpha = (12 + 70 * v * v) * strength
+			if film.grain_type == "color" then
+				local pick = random(3)
+				local c = { 90, 90, 90 }
+				c[pick] = 255
+				kit:rect(x, y, size, size, { c[1], c[2], c[3], alpha })
+			else
+				local g = v > 0 and 255 or 0
+				kit:rect(x, y, size, size, { g, g, g, alpha })
+			end
+			drawn = drawn + 1
 		end
 	end
-	return n
+	return drawn
 end
 
 -- The flare from a point on screen (the sun), fading as the point leaves the screen.
@@ -91,21 +100,27 @@ function M.draw_flare(kit, film, w, h, s)
 	return true
 end
 
--- Light spilling in from the top left corner, and less from the bottom right.
+-- Light bleeding in from the left edge: thin strips from the edge inward, each fainter than the last,
+-- so it fades smoothly with no visible edge.
+M.LEAK_WIDTH = 0.42 -- of the screen's width
+M.LEAK_STRIP = 3    -- pixels per strip at 1080 lines
+
 function M.draw_leak(kit, film, w, h, s)
 	local amount = math.min(1, film.leak or 0)
-	if amount <= 0 then return false end
+	if amount <= 0 then return 0 end
 	local c = film.leak_rgb or { 1, 0.7, 0.3 }
 	local r, g, b = c[1] * 255, c[2] * 255, c[3] * 255
-	for i = 1, 6 do
-		local radius = h * (1.05 - i * 0.13)
-		kit:poly(disc(-0.05 * w, h * 1.05, radius, 28), { r, g, b, 22 * amount })
+	local reach = w * M.LEAK_WIDTH
+	local strip = math.max(1, M.LEAK_STRIP * s)
+	local count = 0
+	local x = 0
+	while x < reach do
+		local f = 1 - x / reach
+		kit:rect(x, 0, strip + 0.5, h, { r, g, b, 150 * amount * f * f * f })
+		x = x + strip
+		count = count + 1
 	end
-	for i = 1, 4 do
-		local radius = h * (0.55 - i * 0.1)
-		kit:poly(disc(w * 1.04, -0.04 * h, radius, 24), { r, g, b, 14 * amount })
-	end
-	return true
+	return count
 end
 
 local LAYER = 600

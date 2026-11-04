@@ -5,7 +5,7 @@ local M = {}
 M.KEPT = {
 	move_speed = 6, look_speed = 1, smoothing = 0.4, ground = true, range = 150, invert = false,
 	format = "png", quality = 95, aspect = "screen", bars = false, grid = "off",
-	music = true, music_delay = 20, music_db = -6, guide = true, time = 0,
+	music = true, guide = true, time = 0,
 }
 
 M.values = {}
