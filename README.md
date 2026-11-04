@@ -36,7 +36,7 @@ Every look value stays the planet's until changed; R on a row gives the planet's
 
 ## Pictures
 
-Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the game's window. The panel, the grid and the key guide are left out; a caption, black bars and the color over the picture stay in. The game has no screenshot call of its own, so Photo Mode copies the window through Windows. In exclusive fullscreen the copy can come back black: borderless or windowed mode lets it through.
+Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the game's window. The panel, the grid and the key guide are left out; a caption, black bars and the color over the picture stay in. The game has no screenshot call, so Photo Mode copies the window through Windows. In exclusive fullscreen the copy can come back black: borderless or windowed mode lets it through.
 
 ## Skies
 
