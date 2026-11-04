@@ -1,0 +1,59 @@
+{
+  "obsidian": 1,
+  "id": "alomare.photomode",
+  "version": "1.0.0",
+  "name": {
+    "en": "Photo Mode"
+  },
+  "description": {
+    "en": "Stops a mission and clears the screen for pictures: a free, orbiting or isometric camera, lens and look controls, the time of day, placed lights, a sky over the level, and pictures saved to the Pictures folder. Opens with F7 or from the pause menu."
+  },
+  "authors": [
+    "Alomare"
+  ],
+  "scope": "client",
+  "entry": "main.lua",
+  "source": "https://github.com/Alomare/PhotoMode",
+  "modules": [
+    "src/settings.lua",
+    "src/camera.lua",
+    "src/look.lua",
+    "src/lights.lua",
+    "src/sky.lua",
+    "src/overlay.lua",
+    "src/panel.lua",
+    "src/session.lua"
+  ],
+  "requires": [
+    "obsidian.api"
+  ],
+  "loader_api": 1,
+  "keybinds": [
+    { "id": "toggle", "default": "f7", "label": { "en": "Open or close Photo Mode" } },
+    { "id": "capture", "default": "p", "label": { "en": "Take a picture" } },
+    { "id": "hide", "default": "h", "label": { "en": "Hide or show the controls" } }
+  ],
+  "options": [
+    { "id": "fix_sky", "type": "toggle", "default": true,
+      "label": { "en": "Fix skies" },
+      "description": { "en": "Clears the part of the picture past the level, where the game leaves smears of old frames, and adds the skies of the Sky row. Takes effect at the next launch." } }
+  ],
+  "resources": [
+    { "type": "render_config", "name": "#1a9c33dcd0301dfd", "bundle": "1a9c33dcd0301dfd", "data": "res/render_config.bin", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "photomode/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "when": { "fix_sky": true } },
+    { "type": "material", "name": "photomode/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "photomode/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.unit", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "photomode/sky/dawn_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.texture", "when": { "fix_sky": true } },
+    { "type": "material", "name": "photomode/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.material", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "photomode/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.unit", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "photomode/sky/dusk_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.texture", "when": { "fix_sky": true } },
+    { "type": "material", "name": "photomode/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.material", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "photomode/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "photomode/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "when": { "fix_sky": true } },
+    { "type": "material", "name": "photomode/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "photomode/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "photomode/sky/overcast_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_overcast.texture", "when": { "fix_sky": true } },
+    { "type": "material", "name": "photomode/sky/overcast", "bundle": "9cf71054ea26dddf", "data": "res/sky_overcast.material", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "photomode/sky/overcast", "bundle": "9cf71054ea26dddf", "data": "res/sky_overcast.unit", "when": { "fix_sky": true } }
+  ]
+}
