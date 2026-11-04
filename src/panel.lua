@@ -118,7 +118,7 @@ local function lens_tab(page)
 	page:slider("Roll", { min = -45, max = 45, step = 1, format = "%d deg", get = function() return c.roll end, set = function(v) c.roll = v end, default = 0,
 		help = "Tilts the picture sideways. Z and C do the same." })
 	page:header("Depth of field")
-	page:toggle("Depth of field", { get = function() return look.state.dof == true end, set = function(v) look.set("dof", v) page:refresh() end, default = false,
+	page:toggle("Depth of field", { get = function() return look.state.dof == true end, set = function(v) look.set("dof", v) page:refresh() end, default = true,
 		help = "Blurs everything nearer or farther than the focus distance." })
 	if look.state.dof then
 		page:toggle("Autofocus on Helldiver", looked("focus_player", { help = "Keeps the Helldiver in focus as the camera moves. A double click in the picture focuses on the point under the cursor instead." }))
@@ -136,7 +136,7 @@ local function reset_lens()
 		c.fov = session.start_fov or 50
 		c.fov_before, c.roll = c.fov, 0
 	end
-	for k, v in pairs({ dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true }) do look.set(k, v) end
+	for k, v in pairs({ dof = true, focus = 12, depth = 6, blur = 0.7, focus_player = true }) do look.set(k, v) end
 	return "Lens reset"
 end
 
@@ -416,6 +416,8 @@ function M.make(api)
 	M.panel = api.menu.panel({
 		id = "photo",
 		title = "Photo Mode",
+		-- Square at first, as tall as it is wide, so more rows show without scrolling.
+		width = 540, height = 540,
 		opacity = M.OPACITY,
 		status = session.status,
 		headings = true,

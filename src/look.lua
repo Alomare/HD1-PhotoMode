@@ -79,7 +79,7 @@ M.FIELDS = FIELDS
 M.DEFAULTS = { exposure = 1.5, vignette = 0.5, bloom = 0.2, clouds = 0.5, dust = 0.5, grading = true, fog = 1, fog_color = "white",
 	sun = false, sun_az = 135, sun_height = 35, sun_color = "white", sun_power = 5, fill = 0.5, time = 12, tint = 0, tint_color = "warm",
 	grain = 0, grain_type = "mono", grain_size = 1,
-	dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true }
+	dof = true, focus = 12, depth = 6, blur = 0.7, focus_player = true }
 
 M.state = {}
 -- Values Photo Mode itself asks for while something needs them, such as fog that reaches the sky; a
@@ -89,7 +89,7 @@ M.applied = {}  -- name -> { kind, value }, what reached api.world.shading
 M.applied_time = nil
 
 function M.reset()
-	M.state = { dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true, filter = "none" }
+	M.state = { dof = true, focus = 12, depth = 6, blur = 0.7, focus_player = true, filter = "none" }
 end
 M.reset()
 
