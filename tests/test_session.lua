@@ -112,7 +112,7 @@ test("closing_puts_everything_back", function()
 	eq(rec.photo, false)
 	eq(next(rec.muted), nil, "nothing muted")
 	eq(rec.solo, nil, "every mod draws again")
-	eq(called(rec, "music release") ~= nil, true)
+	eq(obsidian.module("src/music").state, "idle", "the music stopped")
 	eq(rec.calls[#rec.calls][1] ~= "time" or rec.calls[#rec.calls][2] == 1, true)
 	eq(rec.shading.exposure, nil, "the planet's exposure")
 	eq(rec.visible.me, true, "the Helldiver shows")
@@ -134,16 +134,29 @@ test("photo_mode_opens_only_in_a_mission", function()
 	eq(rec.taken, nil)
 end)
 
-test("the_ship_music_starts_after_its_delay_at_its_level", function()
+test("the_ship_music_loads_then_plays_after_its_delay_in_a_world_that_never_pauses", function()
 	local session, rec = setup()
+	local online, events = false, {}
+	rawset(_G, "Boot", { brightness_world = "screen world", package_manager = {
+		is_package_online = function() return online end, load_package = function(_, name) rec.loaded = name end } })
+	rawset(_G, "World", { timpani_world = function(w) return w .. " sound" end })
+	rawset(_G, "TimpaniWorld", { LISTENER_2D = 2, has_event = function(_, e) return e == "music_bridge" end,
+		trigger_event = function(w, e) events[#events + 1] = { w, e } return #events end,
+		set_parameter = function(_, id, k, v) rec.music_volume = v end, is_playing = function() return true end,
+		set_listeners = function() end, set_listener_mode = function() end, stop = function(_, id) rec.stopped = id end })
 	session.start()
 	for _ = 1, 10 do session.frame(1) end
-	eq(called(rec, "music play"), nil, "quiet at first")
+	eq(rec.loaded, nil, "quiet at first")
 	for _ = 1, 11 do session.frame(1) end
-	local play = called(rec, "music play")
-	eq(play[2], "music_bridge")
-	eq(play[3], -6)
-	eq(called(rec, "music resume") ~= nil, true)
+	eq(rec.loaded, "resource_packages/menu", "the ship's package")
+	eq(#events, 0, "waits for it")
+	online = true
+	session.frame(0.016)
+	eq(events[1][1], "screen world sound", "in the screen world's sound")
+	eq(events[1][2], "music_bridge")
+	near(rec.music_volume, 10 ^ (-6 / 20), "-6 dB", 1e-6)
+	session.stop()
+	eq(rec.stopped, 1)
 end)
 
 test("a_picture_is_cut_to_the_frame_or_keeps_its_bars", function()
@@ -155,7 +168,7 @@ test("a_picture_is_cut_to_the_frame_or_keeps_its_bars", function()
 	near(rec.shot.aspect, 21 / 9)
 	eq(rec.shot.keep, true, "the color and caption stay in it")
 	rec.done("C:\\Pictures\\Helldivers\\shot.png")
-	eq(rec.toasts[#rec.toasts], "Saved: shot.png")
+	eq(rec.toasts[#rec.toasts], "Saved shot.png")
 	settings.set("bars", true)
 	session.take_picture()
 	eq(rec.shot.aspect, nil, "with bars, the whole screen")

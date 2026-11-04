@@ -4,7 +4,7 @@ A photo mode for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomar
 
 Open it with **F7** or the **PHOTO MODE** row of the pause menu, during a mission. Esc, F7 or the panel's close button leave it, and everything goes back as it was.
 
-It needs Obsidian API 1.23.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
+It needs Obsidian API 1.24.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
 
 ## Controls
 
@@ -16,21 +16,25 @@ It needs Obsidian API 1.23.0 or later, which Obsidian installs with it. It's a c
 | Mouse wheel | Field of view in Free mode, distance or zoom in the others |
 | Shift, Alt | Four times faster, four times slower |
 | Z, C | Roll the picture |
+| Left mouse button, twice | Focus on the point under the cursor |
+| Left mouse button on a light | Select the light; drag the colored handles to move it |
 | P | Take a picture |
 | H | Hide or show the panel |
 | Arrow keys, Enter, Tab | Rows, values and tabs of the panel; the mouse works too |
 
-A pad's sticks move and turn the camera. P, H and F7 can be changed in the Keys tab of Photo Mode in Obsidian.
+The cursor hides while the right mouse button turns the camera. A pad's sticks move and turn the camera. P, H and F7 can be changed in the Keys tab of Photo Mode in Obsidian.
 
 ## The panel
 
-- **Camera**: Free, Orbit (circles the Helldiver, or turns by itself for a turntable view) and Isometric (a fixed angle, with a telephoto lens or no perspective at all). Move and look speed, smoothing, how far the camera can go, and staying above the ground.
-- **Lens**: field of view, roll, depth of field (focused on the Helldiver or at a distance), exposure, vignette and bloom.
-- **Look**: ready-made filters, the planet's color grading on or off, a color laid over the picture, fog, glow, cloud shadows and dust.
-- **Light**: the time of day, blending the planet's dawn, day, dusk and night; the sun's direction, height, color and strength; shadow fill; the Helldiver's flashlight; and up to eight placed lights, each with a color, brightness, reach, a point or spot shape and shadows.
+The panel opens at the bottom right. The title bar moves it, the corner grip resizes it, and the line above the help text resizes the help area. Panel opacity and scale are on the Photo tab, and the reset button in the title bar puts every setting back to the default.
+
+- **Camera**: a camera lock, Free, Orbit (circles the Helldiver, or turns by itself for a turntable view) and Isometric (a fixed angle, with a telephoto lens or no perspective at all). Move and look speed, smoothing, how far the camera can go, and staying above the ground.
+- **Lens**: focal length presets from 14 to 200 mm, field of view, roll, depth of field (focused on the Helldiver or at a distance), exposure, vignette and bloom.
+- **Look**: ready-made filters, the planet's color grading on or off, a color laid over the picture, fog, glow, cloud shadows and the screen dust layer (off by default: it's drawn flat over the screen for the top-down view).
+- **Light**: the time of day, blending the planet's dawn, day, dusk and night; the sun's direction, height, color and strength; shadow fill; the Helldiver's flashlight; a three-point lighting rig around the Helldiver, and up to eight placed lights, each with a color, brightness, range, a point or spot shape and shadows. Placed lights show as markers in the picture, left out of photos.
 - **Scene**: pause or slow motion, a sky over the level, and the Helldivers shown or hidden.
 - **Frame**: aspect ratio from 32:9 to 9:16, cut or kept with black bars, composition grids, and a caption in the game's title font.
-- **Photo**: PNG or JPEG, the folder, the ship music that starts after a while in Photo Mode, and the key guide.
+- **Photo**: PNG or JPEG, the folder, the ship music that starts after a while in Photo Mode, the controls overlay, and the panel's opacity and scale.
 
 Every look value stays the planet's until changed; R on a row gives the planet's back.
 
@@ -40,7 +44,7 @@ Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the
 
 ## Skies
 
-The game was made to be seen from above, so past the level it draws nothing, and the picture keeps smears of old frames there. The **Fix skies** option, on by default in the mod's options in Obsidian, clears that part of the picture each frame and adds five skies (day, dawn, dusk, night and overcast) for the Sky row of the Scene tab. It changes how the game starts up, so it takes effect at the next launch.
+The game was made to be seen from above, so past the level it draws nothing, and the picture keeps smears of old frames there. The **Fix skies** option, on by default in the mod's options in Obsidian, clears that part of the picture each frame and adds five skies (while one shows, the fog reaches past it) (day, dawn, dusk, night and overcast) for the Sky row of the Scene tab. It changes how the game starts up, so it takes effect at the next launch.
 
 ## Building the skies
 

@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.photomode",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": {
     "en": "Photo Mode"
   },
@@ -22,6 +22,8 @@
     "src/sky.lua",
     "src/overlay.lua",
     "src/panel.lua",
+    "src/music.lua",
+    "src/gizmo.lua",
     "src/session.lua"
   ],
   "requires": [

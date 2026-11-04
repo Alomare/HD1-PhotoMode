@@ -56,6 +56,9 @@ M.DEFAULTS = { exposure = 1.5, vignette = 0.5, bloom = 0.2, glow = 1, clouds = 0
 	dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true }
 
 M.state = {}
+-- Values Photo Mode itself asks for while something needs them, such as fog that reaches the sky; a
+-- value the player set wins.
+M.extra = {}
 M.applied = {}  -- name -> { kind, value }, what reached api.world.shading
 M.applied_time = nil
 
@@ -142,6 +145,9 @@ function M.wanted(focus_override)
 		out.dof_near_setting = { "vector2", { math.max(0, focus - depth / 2), ramp } }
 		out.dof_far_setting = { "vector2", { focus + depth / 2, ramp } }
 	end
+	for name, w in pairs(M.extra) do
+		if not out[name] then out[name] = w end
+	end
 	return out
 end
 
@@ -191,6 +197,7 @@ function M.restore(api)
 	M.applied = {}
 	if M.applied_time then pcall(api.world.time_of_day, nil) end
 	M.applied_time = nil
+	M.extra = {}
 	M.reset()
 end
 

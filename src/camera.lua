@@ -11,6 +11,22 @@ M.TELEPHOTO_FOV = 10
 M.ORBIT_RATE = 90      -- degrees a second that A and D turn an orbit
 M.ISO_TURN = 90        -- degrees each turn of an isometric view
 M.ZOOM_STEP = 0.12     -- the share of the distance one step of the wheel moves
+-- Lens lengths for a full-frame camera, whose picture is 24 mm tall: the vertical field of view of f mm
+-- is 2 atan(12 / f).
+M.FOCAL_LENGTHS = { 14, 18, 24, 35, 50, 85, 135, 200 }
+
+function M.fov_of(mm) return math.deg(2 * math.atan(12 / mm)) end
+
+function M.mm_of(fov) return math.floor(12 / math.tan(math.rad(fov) / 2) + 0.5) end
+
+-- The listed length nearest a field of view.
+function M.focal_of(fov)
+	local mm, best = M.mm_of(fov), nil
+	for _, f in ipairs(M.FOCAL_LENGTHS) do
+		if not best or math.abs(f - mm) < math.abs(best - mm) then best = f end
+	end
+	return best
+end
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 

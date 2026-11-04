@@ -108,16 +108,15 @@ function M.draw(view, dt)
 		kit:layer(LAYER + 4)
 		kit:text(view.caption, x, y, style)
 	end
-	if view.guide and not view.capturing then
-		local size = math.floor(17 * s)
-		local y = 28 * s
-		kit:layer(LAYER + 4)
-		for i = #view.guide, 1, -1 do
-			kit:text(view.guide[i], 30 * s + 1, y - 1, { font = "ui", size = size, color = SHADOW })
-			kit:text(view.guide[i], 30 * s, y, { font = "ui", size = size, color = { 236, 235, 231, 230 } })
-			y = y + size + 6 * s
+	if view.markers and not view.capturing then
+		local ok, err = pcall(obsidian.module("src/gizmo").draw, kit, { lights = view.markers.lights, pose = view.markers.pose,
+			to_screen = view.markers.to_screen, scale = s })
+		if not ok and not M.marker_failed then
+			M.marker_failed = true
+			obsidian.log("photo mode: markers: " .. tostring(err))
 		end
 	end
+	if view.guide and not view.capturing then M.draw_guide(kit, view.guide, s) end
 	if M.flash > 0 then
 		M.flash = math.max(0, M.flash - (dt or 0))
 		kit:layer(LAYER + 5)
@@ -126,5 +125,51 @@ function M.draw(view, dt)
 end
 
 function M.flash_now() M.flash = 0.3 end
+
+-- The key guide: a box at the bottom left with a keycap row for each control, the label after it, in
+-- two columns.
+M.GUIDE = { margin = 24, pad = 10, row = 26, cap_h = 19, gap = 4, label_gap = 8, column = 210, text = 15 }
+local BOX, CAP, CAP_EDGE, LABEL = { 15, 17, 19, 150 }, { 54, 57, 62, 235 }, { 255, 255, 255, 46 }, { 236, 235, 231, 235 }
+
+function M.guide_layout(kit, guide, s)
+	local g = M.GUIDE
+	local rows = math.ceil(#guide / 2)
+	local cells = {}
+	for i, entry in ipairs(guide) do
+		local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+		local x = (g.pad + col * g.column) * s
+		local y = (g.pad + (rows - 1 - row) * g.row) * s
+		local caps, cx = {}, x
+		for _, key in ipairs(entry.keys) do
+			local w = math.max(g.cap_h * s, kit:measure(key, { font = "ui", size = math.floor(g.text * s) }) + 10 * s)
+			caps[#caps + 1] = { key = key, x = cx, w = w }
+			cx = cx + w + g.gap * s
+		end
+		cells[#cells + 1] = { caps = caps, y = y, label_x = cx + (g.label_gap - g.gap) * s, label = entry.label }
+	end
+	return cells, (g.pad * 2 + g.column * 2 - 20) * s, (g.pad * 2 + rows * g.row - (g.row - g.cap_h)) * s
+end
+
+function M.draw_guide(kit, guide, s)
+	local g = M.GUIDE
+	local cells, w, h = M.guide_layout(kit, guide, s)
+	local ox, oy = g.margin * s, g.margin * s
+	kit:layer(LAYER + 3)
+	kit:rect(ox, oy, w, h, BOX)
+	local size = math.floor(g.text * s)
+	for _, cell in ipairs(cells) do
+		for _, c in ipairs(cell.caps) do
+			kit:layer(LAYER + 4)
+			kit:rect(ox + c.x, oy + cell.y, c.w, g.cap_h * s, CAP_EDGE)
+			kit:layer(LAYER + 5)
+			kit:rect(ox + c.x + 1, oy + cell.y + 1, c.w - 2, g.cap_h * s - 2, CAP)
+			kit:layer(LAYER + 6)
+			local tw = kit:measure(c.key, { font = "ui", size = size })
+			kit:text(c.key, ox + c.x + (c.w - tw) / 2, oy + cell.y + 4 * s, { font = "ui", size = size, color = LABEL })
+		end
+		kit:layer(LAYER + 6)
+		kit:text(cell.label, ox + cell.label_x, oy + cell.y + 4 * s, { font = "ui", size = size, color = LABEL })
+	end
+end
 
 return M

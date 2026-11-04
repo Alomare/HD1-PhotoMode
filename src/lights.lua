@@ -24,7 +24,7 @@ function M.add(api, pos, yaw, pitch)
 	local handle, why = api.world.light(pos, opts_of(l))
 	if not handle then return nil, why end
 	M.made = M.made + 1
-	l.handle, l.number = handle, M.made
+	l.handle, l.number, l.pos = handle, M.made, { x = pos.x, y = pos.y, z = pos.z }
 	M.list[#M.list + 1] = l
 	return l
 end
@@ -37,6 +37,7 @@ end
 function M.move(l, pos, yaw, pitch)
 	if not (l.handle and l.handle:alive()) then return false end
 	l.yaw, l.pitch = yaw or l.yaw, pitch or l.pitch
+	l.pos = { x = pos.x, y = pos.y, z = pos.z }
 	l.handle:move(pos)
 	l.handle:set(opts_of(l))
 	return true
@@ -55,6 +56,33 @@ function M.clear()
 		if l.handle then pcall(l.handle.remove, l.handle) end
 	end
 	M.list = {}
+end
+
+-- Three lights around a subject at `at`, seen from a camera turned `yaw`: a warm key in front and to
+-- one side, a dim cold fill on the other, and a rim light behind. Each is aimed at the subject.
+M.RIG = {
+	{ name = "key", turn = 45, distance = 3.5, height = 2.2, color = "warm", intensity = 5, range = 9 },
+	{ name = "fill", turn = -60, distance = 4, height = 1.4, color = "cold", intensity = 1.5, range = 9 },
+	{ name = "rim", turn = 170, distance = 3, height = 2.6, color = "white", intensity = 6, range = 7 },
+}
+
+function M.rig(api, at, yaw)
+	local made = 0
+	for _, r in ipairs(M.RIG) do
+		local a = math.rad(yaw + 180 + r.turn)
+		local pos = { x = at.x - math.sin(a) * r.distance, y = at.y + math.cos(a) * r.distance, z = at.z + r.height }
+		-- Aimed back at the subject.
+		local dx, dy, dz = at.x - pos.x, at.y - pos.y, at.z - pos.z
+		local aim_yaw = math.deg(math.atan2(-dx, dy))
+		local aim_pitch = math.deg(math.atan2(dz, math.sqrt(dx * dx + dy * dy)))
+		local l = M.add(api, pos, aim_yaw, aim_pitch)
+		if l then
+			l.color, l.intensity, l.range, l.shape, l.angle = r.color, r.intensity, r.range, "spot", 60
+			M.update(l)
+			made = made + 1
+		end
+	end
+	return made
 end
 
 function M.name_of(l)

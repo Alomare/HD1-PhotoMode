@@ -34,7 +34,7 @@ local function test(name, fn)
 	if ok then passed = passed + 1 else failed = failed + 1 print("FAIL " .. name .. "\n" .. err) end
 end
 
-for _, file in ipairs({ "tests/test_camera.lua", "tests/test_look.lua", "tests/test_overlay.lua", "tests/test_session.lua", "tests/test_writing.lua" }) do
+for _, file in ipairs({ "tests/test_camera.lua", "tests/test_look.lua", "tests/test_overlay.lua", "tests/test_session.lua", "tests/test_gizmo.lua", "tests/test_writing.lua" }) do
 	local tests = dofile(file)
 	for _, t in ipairs(tests) do test(file .. " " .. t[1], t[2]) end
 end

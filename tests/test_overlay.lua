@@ -30,11 +30,11 @@ test("guides_leave_the_picture_and_its_color_and_bars_stay", function()
 	local overlay = obsidian.module("src/overlay")
 	rawset(_G, "Application", { resolution = function() return 1920, 1080 end })
 	overlay.kit = kit()
-	local view = { tint = { 1, 0, 0 }, tint_amount = 0.2, aspect = "1:1", bars = false, grid = "thirds", caption = "FOR LIBERTY", guide = { "W A S D  Move" } }
+	local view = { tint = { 1, 0, 0 }, tint_amount = 0.2, aspect = "1:1", bars = false, grid = "thirds", caption = "FOR LIBERTY", guide = { { keys = { "W" }, label = "Move" } } }
 	overlay.draw(view, 0.016)
 	local drawn = #overlay.kit.rects
-	eq(drawn, 1 + 2 + 4, "tint, two dimmed sides, four grid lines")
-	eq(#overlay.kit.texts, 4, "caption and its shadow, guide and its shadow")
+	eq(drawn, 1 + 2 + 4 + 3, "tint, two dimmed sides, four grid lines, the guide's box and keycap")
+	eq(#overlay.kit.texts, 4, "caption and its shadow, the key and its label")
 	overlay.kit = kit()
 	view.capturing = true
 	overlay.draw(view, 0.016)

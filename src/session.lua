@@ -7,6 +7,8 @@ local look = obsidian.module("src/look")
 local lights = obsidian.module("src/lights")
 local sky = obsidian.module("src/sky")
 local overlay = obsidian.module("src/overlay")
+local music = obsidian.module("src/music")
+local gizmo = obsidian.module("src/gizmo")
 
 local M = {
 	active = false, api = nil, panel = nil, cam = nil, anchor = nil, pose = nil, alone = false,
@@ -75,7 +77,9 @@ local function mouse()
 			local found, delta = pcall(m.axis_index, "mouse")
 			mouse_ids = { delta = found and delta or nil, cursor = m.axis_index("cursor"), wheel = m.axis_index("wheel"), right = m.button_index("right") }
 		end
-		local out = { right = m.button(mouse_ids.right) > 0.5, wheel = m.axis(mouse_ids.wheel).y, cursor = m.axis(mouse_ids.cursor) }
+		if not mouse_ids.left then mouse_ids.left = m.button_index("left") end
+		local out = { right = m.button(mouse_ids.right) > 0.5, wheel = m.axis(mouse_ids.wheel).y, cursor = m.axis(mouse_ids.cursor),
+			left = m.button(mouse_ids.left) > 0.5, left_pressed = m.pressed(mouse_ids.left) == true }
 		if mouse_ids.delta then out.delta = m.axis(mouse_ids.delta) end
 		return out
 	end)
@@ -87,7 +91,7 @@ local last_cursor = nil
 -- What the keys, the mouse and a pad ask of the camera this frame.
 function M.read_input(dt)
 	local input = { move = { x = 0, y = 0, z = 0 }, look = { x = 0, y = 0 }, zoom = 0, turn = 0, roll = 0 }
-	if M.panel and M.panel:typing() then return input end
+	if (M.panel and M.panel:typing()) or M.locked then return input end
 	local mv = input.move
 	if held("forward") then mv.y = mv.y + 1 end
 	if held("back") then mv.y = mv.y - 1 end
@@ -114,10 +118,14 @@ function M.read_input(dt)
 			dx, dy = m.cursor.x - last_cursor.x, m.cursor.y - last_cursor.y
 		end
 		last_cursor = { x = m.cursor.x, y = m.cursor.y }
+		-- Moving the mouse up looks up: the cursor's y grows upward, and pitch grows looking up, but
+		-- the mouse's own movement counts down the screen.
 		if m.right then
 			input.look.x = dx * rate
-			input.look.y = dy * rate * (settings.get("invert") and -1 or 1)
+			input.look.y = -dy * rate * (settings.get("invert") and -1 or 1)
 		end
+		M.set_looking(m.right)
+		M.mouse_now = m
 		if m.wheel ~= 0 and not (M.panel and M.panel:under_mouse()) then input.zoom = m.wheel > 0 and 1 or -1 end
 	end
 	-- A pad's sticks, where there is one: the left moves, the right looks.
@@ -133,6 +141,14 @@ function M.read_input(dt)
 	end
 	mv.x, mv.y, mv.z = math.max(-1, math.min(1, mv.x)), math.max(-1, math.min(1, mv.y)), math.max(-1, math.min(1, mv.z))
 	return input
+end
+
+-- The cursor hides while the right button turns the camera, where the API's panel can let it go.
+function M.set_looking(on)
+	if M.looking == on then return end
+	M.looking = on
+	local p = M.panel
+	if p and type(p.set_cursor_hidden) == "function" then pcall(p.set_cursor_hidden, p, on) end
 end
 
 local function mute(on)
@@ -162,7 +178,7 @@ function M.start()
 	local api = M.api
 	if M.active then return true end
 	if not api.game.in_mission() then
-		toast("Photo Mode opens during a mission.")
+		toast("Photo Mode is available during missions.")
 		return false, "not_in_mission"
 	end
 	-- From the key with the pause menu open: it closes first, as Resume does.
@@ -170,11 +186,14 @@ function M.start()
 	if type(st) == "table" and st.active_screen and type(st.pop_menu) == "function" then pcall(st.pop_menu, st) end
 	local ok, why = api.world.camera.take()
 	if not ok then
-		toast("The camera isn't free right now.")
+		toast("Camera unavailable.")
 		return false, why
 	end
 	M.active = true
 	look.reset()
+	-- The planets' scrolling dust is a layer over the whole screen, made for the camera high above:
+	-- off from any other view, and back with R on its row.
+	look.set("dust", 0)
 	local pose = api.world.camera.get()
 	local chest = my_chest()
 	M.cam = camera.new(pose, chest)
@@ -185,12 +204,13 @@ function M.start()
 	if M.alone then
 		api.world.time_scale(settings.get("time"))
 	else
-		toast("Other players are in the lobby, so the game keeps running.")
+		toast("Other players in the lobby: the game keeps running.")
 	end
 	api.world.camera.photo(true)
 	mute(true)
 	api.music.pause()
 	M.music_time, M.music_started = 0, false
+	M.controls_hidden, M.sky_warned = false, false
 	M.helldivers, M.flashlight, M.hidden = "shown", false, {}
 	if M.panel then M.panel:open(1) end
 	return true
@@ -226,8 +246,10 @@ function M.stop()
 	pcall(api.world.camera.release)
 	pcall(api.world.camera.photo, false)
 	mute(false)
-	pcall(api.music.release)
+	pcall(music.stop)
 	pcall(api.music.resume)
+	M.set_looking(false)
+	gizmo.selected, gizmo.drag = nil, nil
 	pcall(api.world.time_scale, 1)
 	look.restore(api)
 	lights.clear()
@@ -244,6 +266,9 @@ end
 function M.toggle()
 	if M.active then M.stop() else M.start() end
 end
+
+-- The Helldiver's chest, or nil.
+function M.chest() return my_chest() end
 
 -- A point some metres ahead of the camera.
 function M.ahead(metres)
@@ -307,7 +332,7 @@ function M.take_picture()
 	local ok, why = api.capture.shot(opts, function(path, reason)
 		overlay.flash_now()
 		if path then
-			toast("Saved: " .. path:match("[^\\/]+$"))
+			toast("Saved " .. path:match("[^\\/]+$"))
 		else
 			toast(REASONS[reason] or "The picture wasn't saved.")
 		end
@@ -348,9 +373,18 @@ function M.frame(dt)
 		end
 	end
 	local name = M.sky_name()
+	look.extra = {}
 	if name then
-		local shown = sky.show(api, name, pose.position, M.sky_brightness)
-		if shown then pose.far = math.max(pose.far or 0, sky.far()) end
+		local shown, why = sky.show(api, name, pose.position, M.sky_brightness)
+		if shown then
+			pose.far = math.max(pose.far or 0, sky.far())
+			-- The planet's fog closes in a few hundred metres away and would cover the dome: it reaches
+			-- past the dome while a sky shows, unless the player set a fog.
+			look.extra.fog_depth_range = { "vector2", { 60, sky.RADIUS * 1.6 } }
+		elseif not M.sky_warned then
+			M.sky_warned = true
+			obsidian.log("photo mode: sky " .. name .. " not shown: " .. tostring(why))
+		end
 	elseif sky.prop then
 		sky.hide()
 	end
@@ -366,27 +400,60 @@ function M.frame(dt)
 		M.music_time = M.music_time + dt
 		if M.music_time >= settings.get("music_delay") then
 			M.music_started = true
-			local ok = api.music.play("music_bridge", { db = settings.get("music_db") })
-			if ok then api.music.resume() end
+			music.start(settings.get("music_db"))
 		end
 	end
+	music.tick()
+	-- The left mouse button in the picture: the lights' markers and handles, and focus by double click.
+	local m = M.mouse_now
+	if m and not M.controls_hidden then
+		gizmo.input({ lights = lights, pose = pose, dt = dt, to_screen = api.world.to_screen,
+			screen_h = select(2, g("Application").resolution()),
+			over_panel = M.panel and M.panel:under_mouse(),
+			mouse = { x = m.cursor.x, y = m.cursor.y, held = m.left, pressed = m.left_pressed },
+			on_focus = M.focus_at_cursor })
+	end
+end
+
+-- Focus on what's under the cursor: depth of field on, at that distance.
+function M.focus_at_cursor()
+	local point = M.api.world.cursor()
+	if not (point and M.pose) then return end
+	local d = camera.depth_of(M.pose, point)
+	if d <= 0 then return end
+	look.set("dof", true)
+	look.set("focus_player", false)
+	look.set("focus", math.max(0.5, math.min(100, d)))
+	toast(string.format("Focus %.1f m", d))
+	if M.panel then M.panel:refresh() end
+end
+
+-- Shows or hides everything Photo Mode draws over the game: the panel, the key guide and the markers.
+function M.set_controls_hidden(on)
+	M.controls_hidden = on
+	if M.panel then M.panel:hide(on) end
 end
 
 -- What the overlay draws this frame.
 function M.view()
 	local guide = nil
-	if settings.get("guide") then
-		local turn = M.cam and M.cam.mode == "isometric"
+	if settings.get("guide") and not M.controls_hidden then
+		local iso = M.cam and M.cam.mode == "isometric"
 		guide = {
-			"W A S D  Move     " .. (turn and "Q E  Turn" or "Q E  Down and up") .. "     Shift  Faster     Alt  Slower",
-			"Right mouse  Look     Wheel  " .. (M.cam and M.cam.mode == "free" and "Field of view" or "Zoom") .. "     Z C  Roll",
-			"P  Take a picture     H  Hide the controls     F7  Leave",
+			{ keys = { "W", "A", "S", "D" }, label = "Move" },
+			{ keys = { "Q", "E" }, label = iso and "Turn" or "Down / up" },
+			{ keys = { "Shift" }, label = "Fast" }, { keys = { "Alt" }, label = "Slow" },
+			{ keys = { "RMB" }, label = "Look" },
+			{ keys = { "Wheel" }, label = M.cam and M.cam.mode == "free" and "Zoom lens" or "Distance" },
+			{ keys = { "Z", "C" }, label = "Roll" },
+			{ keys = { "LMB x2" }, label = "Focus" },
+			{ keys = { "P" }, label = "Take photo" }, { keys = { "H" }, label = "Hide controls" }, { keys = { "F7" }, label = "Exit" },
 		}
 	end
 	return {
 		tint = look.color(look.get("tint_color")), tint_amount = look.state.tint or 0, aspect = settings.get("aspect"), bars = settings.get("bars"),
 		grid = settings.get("grid"), caption = M.caption, caption_place = M.caption_place, caption_size = M.caption_size, guide = guide,
-		capturing = M.api.capture.busy(),
+		capturing = M.api.capture.busy(), markers = not M.controls_hidden and { lights = lights, pose = M.pose, to_screen = M.api.world.to_screen } or nil,
 	}
 end
 
