@@ -21,7 +21,7 @@ session.panel = panel.make(api)
 if type(obsidian.ui) == "table" and type(obsidian.ui.canvas) == "function" then overlay.kit = obsidian.ui.canvas("photo", { layer = 600 }) end
 
 api.mod_settings.pause_row("photo_mode", { en = "Photo Mode" }, function() session.start() end,
-	{ when = function(screen) return screen == "game" end })
+	{ when = function(screen) return screen == "game" or screen == "menu" end })
 
 local function typing()
 	return session.panel and session.panel:typing()

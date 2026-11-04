@@ -17,6 +17,24 @@ local M = {
 	self_id = nil, solo = false,
 }
 
+-- What needs a mission's content, and so stays off on the ship: the lights are beacon flares from the
+-- mission's packages, the skies and the time of day belong to a planet's look, and the dust and cloud
+-- shadows are layers of a planet's shading.
+M.MISSION_ONLY = { lights = true, sky = true, time = true, dust = true, clouds = true }
+M.SHIP_ONLY_REASON = "Not available on the ship."
+
+-- Whether a part of Photo Mode works where it's open: true, or false and the reason to show.
+function M.supports(feature)
+	if M.place == "ship" and M.MISSION_ONLY[feature] then return false, M.SHIP_ONLY_REASON end
+	return true
+end
+
+local function where(api)
+	if api.game.in_mission() then return "mission" end
+	if api.game.on_ship and api.game.on_ship() then return "ship" end
+	return nil
+end
+
 -- The parts of the game's screen Photo Mode mutes (obsidian.ui.mute): the whole HUD, hints, the chat,
 -- the sample counter and the save icon.
 M.MUTED = { "hud", "hints", "chat", "samples", "save_icon" }
@@ -177,10 +195,12 @@ end
 function M.start()
 	local api = M.api
 	if M.active then return true end
-	if not api.game.in_mission() then
-		toast("Photo Mode is available during missions.")
+	local place = where(api)
+	if not place then
+		toast("Photo Mode is available in missions and on the ship.")
 		return false, "not_in_mission"
 	end
+	M.place = place
 	-- From the key with the pause menu open: it closes first, as Resume does.
 	local st = api.game.state()
 	if type(st) == "table" and st.active_screen and type(st.pop_menu) == "function" then pcall(st.pop_menu, st) end
@@ -192,8 +212,8 @@ function M.start()
 	M.active = true
 	look.reset()
 	-- The planets' scrolling dust is a layer over the whole screen, made for the camera high above:
-	-- off from any other view, and back with R on its row.
-	look.set("dust", 0)
+	-- off from any other view, and back with R on its row. The ship has none.
+	if place == "mission" then look.set("dust", 0) end
 	local pose = api.world.camera.get()
 	local chest = my_chest()
 	M.cam = camera.new(pose, chest)
@@ -351,7 +371,7 @@ end
 function M.frame(dt)
 	if not M.active then return end
 	local api = M.api
-	if not api.game.in_mission() then return M.stop() end
+	if where(api) ~= M.place then return M.stop() end
 	local input = M.read_input(dt)
 	local c = M.cam
 	local pose = camera.update(c, input, dt, { speed = settings.get("move_speed"), smoothing = settings.get("smoothing"),
@@ -372,7 +392,7 @@ function M.frame(dt)
 			if c.mode == "free" and c.position.z < floor + 0.4 then c.position.z = floor + 0.4 end
 		end
 	end
-	local name = M.sky_name()
+	local name = M.supports("sky") and M.sky_name() or nil
 	look.extra = {}
 	if name then
 		local shown, why = sky.show(api, name, pose.position, M.sky_brightness)
@@ -400,7 +420,8 @@ function M.frame(dt)
 		M.music_time = M.music_time + dt
 		if M.music_time >= settings.get("music_delay") then
 			M.music_started = true
-			music.start(settings.get("music_db"))
+			-- The ship plays its own music, in a world of its own: it only comes back.
+			if M.place == "ship" then api.music.resume() else music.start(settings.get("music_db")) end
 		end
 	end
 	music.tick()

@@ -111,8 +111,8 @@ local function look_tab(page)
 	page:choice("Fog", looked("fog", { choices = choices(look.FOGS), help = "How far the air stays clear before the fog closes in." }))
 	page:choice("Fog color", looked("fog_color", { choices = COLORS, help = "The color the distance fades to." }))
 	page:slider("Glow", looked("glow", { min = 0, max = 4, step = 0.1, format = "%.1f", help = "How brightly lights, screens and other glowing surfaces shine." }))
-	page:slider("Cloud shadows", looked("clouds", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "How dark the shadows of passing clouds are on the ground." }))
-	page:slider("Screen dust", looked("dust", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "The planet's scrolling dust layer, drawn flat over the screen for the top-down view. Off by default in Photo Mode; R restores the planet's value." }))
+	page:slider("Cloud shadows", looked("clouds", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("clouds") end, help = "How dark the shadows of passing clouds are on the ground." }))
+	page:slider("Screen dust", looked("dust", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("dust") end, help = "The planet's scrolling dust layer, drawn flat over the screen for the top-down view. Off by default in Photo Mode; R restores the planet's value." }))
 end
 
 local function light_page(l)
@@ -146,11 +146,11 @@ end
 
 local function light_tab(page)
 	page:header("Time and sun")
-	page:toggle("Time override", { get = function() return look.state.time ~= nil end,
+	page:toggle("Time override", { enabled = function() return session.supports("time") end, get = function() return look.state.time ~= nil end,
 		set = function(v) if v then look.set("time", look.get("time")) else look.clear("time") end page:refresh() end, default = false,
 		help = "Lights the level at an hour of your choice, blending the planet's dawn, day, dusk and night. Off, the mission's own time shows." })
 	if look.state.time then
-		page:slider("Time of day", { min = 0, max = 24, step = 0.25, format = clock, get = function() return look.get("time") end, set = function(v) look.set("time", v) end,
+		page:slider("Time of day", { enabled = function() return session.supports("time") end, min = 0, max = 24, step = 0.25, format = clock, get = function() return look.get("time") end, set = function(v) look.set("time", v) end,
 			help = "The hour. Night is at midnight, dawn at 6, day at noon and dusk at 18." })
 	end
 	page:toggle("Sun position", { get = function() return look.state.sun == true end, set = function(v) if v then look.set("sun", true) else look.clear("sun") end page:refresh() end,
@@ -172,14 +172,14 @@ local function light_tab(page)
 		if not l then return why == "full" and ("At most " .. lights.MAX .. " lights.") or "The light couldn't be placed here." end
 		page:refresh()
 		return "Light added"
-	end, { help = "Places a light 3 m ahead of the camera. Lights show as markers in the picture: click one to select it, then drag the colored handles to move it." })
+	end, { enabled = function() return session.supports("lights") end, help = "Places a light 3 m ahead of the camera. Lights show as markers in the picture: click one to select it, then drag the colored handles to move it." })
 	page:action("Three-point lighting", function()
 		local at, p = session.chest(), session.pose
 		if not (at and p) then return "No Helldiver to light." end
 		local made = lights.rig(session.api, at, p.yaw)
 		page:refresh()
 		return made > 0 and (made .. " lights added") or "No room for more lights."
-	end, { help = "Adds a key, a fill and a rim light around the Helldiver, aimed at it, placed from the camera's side." })
+	end, { enabled = function() return session.supports("lights") end, help = "Adds a key, a fill and a rim light around the Helldiver, aimed at it, placed from the camera's side." })
 	for _, l in ipairs(lights.list) do
 		page:page(function() return lights.name_of(l) end, light_page(l), { help = "Color, brightness, reach, shape and shadows of this light." })
 	end
@@ -201,10 +201,19 @@ local function scene_tab(page)
 	page:choice("Sky", { choices = { { id = "off", label = "Off" }, { id = "auto", label = "Matches the time" }, { id = "day", label = "Day" },
 		{ id = "dawn", label = "Dawn" }, { id = "dusk", label = "Dusk" }, { id = "night", label = "Night" }, { id = "overcast", label = "Overcast" } },
 		get = function() return session.sky end, set = function(v) session.sky = v end, default = "off",
-		enabled = function() return sky.available(), sky_off end,
+		enabled = function()
+			local ok, why = session.supports("sky")
+			if not ok then return false, why end
+			return sky.available(), sky_off
+		end,
 		help = "A sky over the level, which the game never draws: clouds by day, stars by night." })
 	page:slider("Sky brightness", { min = 0, max = 6, step = 0.1, format = "%.1f", get = function() return session.sky_brightness end,
-		set = function(v) session.sky_brightness = v sky.set_brightness(v) end, default = 2, enabled = function() return sky.available(), sky_off end,
+		set = function(v) session.sky_brightness = v sky.set_brightness(v) end, default = 2,
+		enabled = function()
+			local ok, why = session.supports("sky")
+			if not ok then return false, why end
+			return sky.available(), sky_off
+		end,
 		help = "How bright the sky is." })
 	page:choice("Helldivers", { choices = { { id = "shown", label = "Shown" }, { id = "mine", label = "Hide player" }, { id = "all", label = "Hide all" } },
 		get = function() return session.helldivers end, set = function(v) session.set_helldivers(v) end, default = "shown",

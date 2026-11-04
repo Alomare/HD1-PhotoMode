@@ -11,7 +11,8 @@ local function setup(opts)
 	local me = { name = "me" }
 	local api = {
 		game = {
-			in_mission = function() return opts.state ~= "menu" end, alone = function() return opts.alone ~= false end,
+			in_mission = function() return opts.state ~= "menu" and opts.state ~= "ship" end, on_ship = function() return opts.state == "ship" end,
+			alone = function() return opts.alone ~= false end,
 			my_unit = function() return me end, all_avatars = function() return { { unit = me, owned = true }, { unit = { name = "friend" }, owned = false } } end,
 			state = function() return {} end,
 		},
@@ -194,6 +195,26 @@ test("the_sky_waits_for_the_option", function()
 	session.sky = "night"
 	session.frame(0.016)
 	eq(#rec.props, 0, "no sky unit the game hasn't loaded")
+end)
+
+test("on_the_ship_photo_mode_opens_and_leaves_out_what_needs_a_mission", function()
+	local session, rec = setup({ state = "ship" })
+	eq(session.start(), true)
+	eq(session.place, "ship")
+	eq(rec.taken, true)
+	for _, feature in ipairs({ "lights", "sky", "time", "dust", "clouds" }) do
+		local ok, why = session.supports(feature)
+		eq(ok, false, feature)
+		eq(why, "Not available on the ship.")
+	end
+	eq(session.supports("dof"), true, "the rest works")
+	eq(obsidian.module("src/look").state.dust, nil, "no dust layer to switch off")
+	session.sky = "day"
+	for _ = 1, 21 do session.frame(1) end
+	eq(#rec.props, 0, "no sky")
+	local resumed = 0
+	for _, c in ipairs(rec.calls) do if c[1] == "music resume" then resumed = resumed + 1 end end
+	eq(resumed, 1, "the ship's own music comes back")
 end)
 
 return T

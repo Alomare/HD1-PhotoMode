@@ -2,9 +2,9 @@
 
 A photo mode for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomare/ObsidianModManager) mod manager. It stops a mission, clears the screen of the HUD, and hands the camera and the look of the level over to a panel of controls, for pictures saved straight to the Pictures folder.
 
-Open it with **F7** or the **PHOTO MODE** row of the pause menu, during a mission. Esc, F7 or the panel's close button leave it, and everything goes back as it was.
+Open it with **F7** or the **PHOTO MODE** row of the pause menu, during a mission or on the ship. On the ship, lights, skies, the time of day, screen dust and cloud shadows are greyed out: they come from a mission's content. Esc, F7 or the panel's close button leave it, and everything goes back as it was.
 
-It needs Obsidian API 1.24.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
+It needs Obsidian API 1.26.0 or later, which Obsidian installs with it. It's a client mod: it works in any lobby, and only this player sees what it changes. With other players in the lobby the game keeps running, as pausing one player's game would split it from theirs.
 
 ## Controls
 
