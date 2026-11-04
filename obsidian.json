@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.photomode",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "name": {
     "en": "Photo Mode"
   },
@@ -43,6 +43,8 @@
       "description": { "en": "Clears the part of the picture past the level, where the game leaves smears of old frames, and adds the skies of the Sky row. Takes effect at the next launch." } }
   ],
   "resources": [
+    { "type": "texture", "name": "photomode/grain/atlas", "bundle": "9cf71054ea26dddf", "data": "res/grain.texture" },
+    { "type": "material", "name": "photomode/grain", "bundle": "9cf71054ea26dddf", "data": "res/grain.material" },
     { "type": "render_config", "name": "#1a9c33dcd0301dfd", "bundle": "1a9c33dcd0301dfd", "data": "res/render_config.bin", "when": { "fix_sky": true } },
     { "type": "texture", "name": "photomode/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "when": { "fix_sky": true } },
     { "type": "material", "name": "photomode/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "when": { "fix_sky": true } },

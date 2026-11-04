@@ -31,7 +31,7 @@ The panel opens at the bottom right. The title bar moves it, the corner grip res
 - **Camera**: a camera lock, Free, Orbit (circles the Helldiver, or turns by itself for a turntable view) and Isometric (a fixed angle, with a telephoto lens or no perspective at all). Move and look speed, smoothing, how far the camera can go, and staying above the ground.
 - **Lens**: focal length presets from 14 to 200 mm, field of view, roll, depth of field (focused on the Helldiver or at a distance), exposure, vignette and bloom.
 - **Look**: ready-made filters, the planet's color grading on or off, a color laid over the picture, fog thickness from none to three times the planet's, fog color, cloud shadows and the screen dust layer (off by default: it's drawn flat over the screen for the top-down view). Filters leave the sun and the time alone, except the five that set a sun.
-- **Film**: grain in mono or color specks, a lens flare from the sun while it's in view, and a light leak from the left edge. The game's shaders have none of these, so they're drawn over the picture, and photos keep them.
+- **Film**: film grain in mono or color, a lens flare from the sun while it's in view, and a light leak from the left edge. The game's shaders have none of these, so they're drawn over the picture, and photos keep them. The grain is a texture of Gaussian noise that moves every frame.
 - **Light**: the time of day, blending the planet's dawn, day, dusk and night; the sun's direction, height, color and strength; shadow fill; the Helldiver's flashlight; a three-point lighting rig around the Helldiver, and up to eight placed lights, each with a color, brightness, range, a point or spot shape and shadows. Placed lights show as markers in the picture, left out of photos.
 - **Scene**: pause or slow motion, and a sky over the level, matching the time of day from the start.
 - **Helldiver**: the Helldivers shown or hidden with their armour and weapons, the cape shown or hidden, a pose from the game's own animations (salute, aiming, stratagem input, signals, sitting, downed and more) blended in by letting the game run for a moment, and the Helldiver's size, place and turn, which hold while the game is stopped. The cape is cloth and doesn't follow a change of size or place.
@@ -48,6 +48,10 @@ Pictures go to `Pictures\Helldivers`, named by date and time, at the size of the
 ## Skies
 
 The game was made to be seen from above, so past the level it draws nothing, and the picture keeps smears of old frames there. The **Fix skies** option, on by default in the mod's options in Obsidian, clears that part of the picture each frame and adds five skies (day, dawn, dusk, night and overcast) for the Sky row of the Scene tab. The planet's fog covers them as it covers the level; Fog on the Look tab thins it. It changes how the game starts up, so it takes effect at the next launch.
+
+## Building the grain
+
+`python tools/build_grain.py` rebuilds `res/grain.texture` and `res/grain.material`: four tiles of Gaussian noise that wrap at their edges, in the alpha of a white texture, with the game's font material, which tints it as it's drawn. It needs numpy and Pillow.
 
 ## Building the skies
 

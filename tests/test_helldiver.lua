@@ -100,6 +100,35 @@ test("the_film_effects_draw_and_stay_off_at_zero", function()
 	eq(polys > 0 and rects >= specks + strips, true)
 end)
 
+test("grain_from_the_texture_covers_the_screen_and_falls_back_to_specks", function()
+	local overlay = obsidian.module("src/overlay")
+	local arts, rects = {}, 0
+	local kit = { art = function(_, name, x, y, w, h, c, uv) arts[#arts + 1] = { name = name, x = x, y = y, w = w, c = c, uv = uv } end,
+		rect = function() rects = rects + 1 end }
+	obsidian.ui.art = function(name, opts) return name == "photomode_grain" and opts.path == "photomode/grain" end
+	eq(overlay.load_grain(), true)
+	local n = overlay.draw_grain_art(kit, { grain = 1, grain_type = "mono", grain_size = 1 }, 1920, 1080, 1)
+	eq(n, 2 * 6 * 3, "light and dark, 6 across and 3 down")
+	eq(arts[1].name, "photomode_grain")
+	eq(arts[1].c[1], 255, "light in white")
+	eq(arts[#arts].c[1], 0, "dark in black")
+	local light, dark = arts[1].uv, arts[#arts].uv
+	near(dark[1] - light[1], 0.5, "the same spot of the dark tile, so the two balance")
+	near(light[3] - light[1], overlay.WINDOW / overlay.GRAIN_ART.size)
+	eq(light[1] >= 0 and light[3] <= 0.5 and light[2] >= 0 and light[4] <= 0.5, true, "inside the light tile")
+	arts = {}
+	eq(overlay.draw_grain_art(kit, { grain = 0.5, grain_type = "color", grain_size = 2 }, 1920, 1080, 1), 4 * 3 * 2, "four fields, twice as big")
+	eq(overlay.draw_grain_art(kit, { grain = 0 }, 1920, 1080, 1), 0)
+	-- Without the texture, the overlay draws specks.
+	obsidian.ui.art = nil
+	eq(overlay.load_grain(), false)
+	rawset(_G, "Application", { resolution = function() return 1920, 1080 end })
+	overlay.kit = { layer = function() end, rect = function() rects = rects + 1 end, poly = function() end, art = function() return false end }
+	overlay.draw({ film = { grain = 0.2, grain_type = "mono" }, aspect = "screen" }, 0)
+	eq(rects > 100, true, "specks")
+	overlay.kit = nil
+end)
+
 -- The API draws each polygon as a fan from its first point, so each has to be convex.
 local function convex(poly)
 	local n, sign = #poly / 2, 0

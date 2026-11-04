@@ -39,6 +39,71 @@ local function disc(cx, cy, r, sides, turn)
 	return out
 end
 
+-- The grain texture (tools/build_grain.py), in the boot bundle. Four tiles of 512: light and dark from
+-- one field of noise, and two more fields for the green and blue of color grain. Tiles wrap at their
+-- edges; each frame shows a window of WINDOW texels at a random spot in each tile, so the grain moves
+-- like film and the tiles laid across the screen show no seams.
+M.GRAIN_ART = { material = "photomode_grain", path = "photomode/grain", size = 1024, tile = 512,
+	tiles = { light = { 0, 0 }, dark = { 512, 0 }, green = { 0, 512 }, blue = { 512, 512 } } }
+M.WINDOW = 384
+M.grain_art = false
+
+-- Registers the texture with the loader. Without it (an older loader, or a deploy that left it out) the
+-- grain is drawn from specks.
+function M.load_grain()
+	local ui = obsidian.ui
+	M.grain_art = type(ui) == "table" and type(ui.art) == "function" and ui.art(M.GRAIN_ART.material, { path = M.GRAIN_ART.path }) == true
+	return M.grain_art
+end
+
+-- The window of a tile for this frame, as the uv kit:art takes: { u0, v0, u1, v1 }.
+function M.grain_uv(name, ox, oy)
+	local a = M.GRAIN_ART
+	local t = a.tiles[name]
+	local x, y = t[1] + ox, t[2] + oy
+	return { x / a.size, y / a.size, (x + M.WINDOW) / a.size, (y + M.WINDOW) / a.size }
+end
+
+-- One tile's window laid across the whole screen in color c. Answers how many were drawn.
+local function lay(kit, uv, step, w, h, c)
+	local n = 0
+	for y = 0, h, step do
+		for x = 0, w, step do
+			if kit:art(M.GRAIN_ART.material, x, y, step, step, c, uv) == false then return n end
+			n = n + 1
+		end
+	end
+	return n
+end
+
+-- The grain from the texture: mono lightens with "light" in white and darkens with "dark" in black;
+-- color tints three fields red, green and blue, and darkens with "dark".
+function M.draw_grain_art(kit, film, w, h, s)
+	local amount = math.min(1, film.grain or 0)
+	if amount <= 0 then return 0 end
+	local step = M.WINDOW * math.max(1, (film.grain_size or 1) * s)
+	local alpha = 255 * (0.25 + 0.75 * amount)
+	local spare = M.GRAIN_ART.tile - M.WINDOW
+	local random = math.random
+	local function spot() return random(0, spare), random(0, spare) end
+	local n = 0
+	if film.grain_type == "color" then
+		local x1, y1 = spot()
+		local x2, y2 = spot()
+		local x3, y3 = spot()
+		n = n + lay(kit, M.grain_uv("light", x1, y1), step, w, h, { 255, 60, 60, alpha * 0.7 })
+		n = n + lay(kit, M.grain_uv("green", x2, y2), step, w, h, { 60, 255, 60, alpha * 0.7 })
+		n = n + lay(kit, M.grain_uv("blue", x3, y3), step, w, h, { 60, 60, 255, alpha * 0.7 })
+		local x4, y4 = spot()
+		n = n + lay(kit, M.grain_uv("dark", x4, y4), step, w, h, { 0, 0, 0, alpha * 0.8 })
+	else
+		local ox, oy = spot()
+		n = n + lay(kit, M.grain_uv("light", ox, oy), step, w, h, { 255, 255, 255, alpha * 0.6 })
+		n = n + lay(kit, M.grain_uv("dark", ox, oy), step, w, h, { 0, 0, 0, alpha * 0.8 })
+	end
+	return n
+end
+
 function M.grain_count(amount, w, h)
 	return math.floor(math.min(1, amount) * M.GRAIN_MAX * (w * h) / (1920 * 1080) + 0.5)
 end
@@ -181,7 +246,7 @@ function M.draw(view, dt)
 	if view.film then
 		M.draw_leak(kit, view.film, w, h, s)
 		M.draw_flare(kit, view.film, w, h, s)
-		M.draw_grain(kit, view.film, w, h, s)
+		if not (M.grain_art and M.draw_grain_art(kit, view.film, w, h, s) > 0) then M.draw_grain(kit, view.film, w, h, s) end
 	end
 	local fx, fy, fw, fh = M.frame(w, h, M.ratio_of(view.aspect))
 	if fw < w or fh < h then
