@@ -13,7 +13,7 @@
   ],
   "scope": "client",
   "entry": "main.lua",
-  "source": "https://github.com/Alomare/PhotoMode",
+  "source": "https://github.com/Alomare/HD1-PhotoMode",
   "modules": [
     "src/settings.lua",
     "src/camera.lua",
