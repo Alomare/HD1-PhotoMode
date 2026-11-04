@@ -51,7 +51,8 @@ function M.input(ctx)
 	local m = ctx.mouse
 	if not m then return false end
 	local list = ctx.lights.list
-	if M.selected and not M.selected.handle then M.selected = nil end
+	-- A light that was removed, one by one or with the rest, leaves no handles behind.
+	if M.selected and not (M.selected.handle and (not ctx.lights.has or ctx.lights.has(M.selected))) then M.selected, M.drag = nil, nil end
 	if M.drag then
 		if not m.held then
 			M.drag = nil
@@ -139,7 +140,7 @@ function M.draw(kit, ctx)
 		end
 	end
 	local sel = M.selected
-	if sel and sel.pos then
+	if sel and sel.pos and (not ctx.lights.has or ctx.lights.has(sel)) then
 		local h = M.handles(sel.pos, ctx.pose.position, ctx.to_screen)
 		if h then
 			for _, a in ipairs(h.axes) do

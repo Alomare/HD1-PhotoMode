@@ -15,6 +15,7 @@ local function setup(opts)
 			alone = function() return opts.alone ~= false end,
 			my_unit = function() return me end, all_avatars = function() return { { unit = me, owned = true }, { unit = { name = "friend" }, owned = false } } end,
 			state = function() return {} end,
+			slaves = function() return {} end, master = function() return nil end,
 		},
 		world = {
 			camera = {
@@ -37,6 +38,8 @@ local function setup(opts)
 			visible = function(unit, on) rec.visible[unit.name] = on return true end,
 			flashlight = function(_, on) rec.flashlight = on return true end,
 			light = function() return { alive = function() return true end, set = function() end, move = function() end, remove = function() rec.light_gone = true end } end,
+			placement = function() return { x = 1, y = 2, z = 0 }, 0 end, place = function() return true end, parts_of = function(u) return { u } end,
+			pose = function() return true end, end_pose = function() return false end, part_visible = function() return true end, part_units = function() return {} end,
 			prop = function(name) local p = { name = name, alive = function() return true end, move = function() end, remove = function() rec.sky_gone = true end }
 				rec.props[#rec.props + 1] = p return p end,
 		},
@@ -56,7 +59,8 @@ local function setup(opts)
 	rawset(_G, "Application", { resolution = function() return 1920, 1080 end })
 	rawset(_G, "Keyboard", { button_index = function(n) return n end, button = function(n) return (KEYS_DOWN or {})[n] and 1 or 0 end, pressed = function() return false end })
 	rawset(_G, "Mouse", nil)
-	rawset(_G, "Unit", { world_position = function() return { x = 1, y = 2, z = 0 } end })
+	rawset(_G, "Unit", { world_position = function() return { x = 1, y = 2, z = 0 } end, world_rotation = function() return "rot" end })
+	rawset(_G, "Quaternion", { forward = function() return { x = 0, y = 1, z = 0 } end })
 	local session = obsidian.module("src/session")
 	obsidian.module("src/settings").load()
 	session.api = api
@@ -99,7 +103,6 @@ test("closing_puts_everything_back", function()
 	session.start()
 	session.set_helldivers("all")
 	eq(rec.visible.me, false)
-	session.set_flashlight(true)
 	local look = obsidian.module("src/look")
 	look.set("exposure", 3)
 	session.sky = "day"
@@ -117,7 +120,6 @@ test("closing_puts_everything_back", function()
 	eq(rec.calls[#rec.calls][1] ~= "time" or rec.calls[#rec.calls][2] == 1, true)
 	eq(rec.shading.exposure, nil, "the planet's exposure")
 	eq(rec.visible.me, true, "the Helldiver shows")
-	eq(rec.flashlight, false)
 	eq(rec.sky_gone, true)
 end)
 
@@ -152,7 +154,7 @@ test("the_exploring_music_plays_after_its_delay_in_a_sound_world_of_its_own", fu
 	eq(rec.world_flag, 2, "a world with sound and no physics")
 	eq(events[1][1], "own world sound")
 	eq(events[1][2], "music_threat", "the mission's exploring track")
-	near(rec.music_volume, 1, "at the track's own level", 1e-6)
+	near(rec.music_volume, 10 ^ (-6 / 20), "at the Music level, -6 dB by default", 1e-6)
 	session.frame(0.016)
 	eq(updates >= 1, true, "the world moves on while the game is stopped")
 	session.stop()

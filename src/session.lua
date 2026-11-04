@@ -13,7 +13,7 @@ local helldiver = obsidian.module("src/helldiver")
 
 local M = {
 	active = false, api = nil, panel = nil, cam = nil, anchor = nil, pose = nil, alone = false,
-	music_time = 0, music_started = false, hidden = {}, flashlight = false, helldivers = "shown",
+	music_time = 0, music_started = false, hidden = {}, helldivers = "shown",
 	sky = "off", sky_brightness = 1, caption = "", caption_place = "bottom_left", caption_size = 40, last_keys = {}, cape = true,
 	self_id = nil, solo = false,
 }
@@ -40,7 +40,7 @@ end
 -- the sample counter and the save icon.
 M.MUTED = { "hud", "hints", "chat", "samples", "save_icon" }
 M.SKY_BRIGHTNESS = 1
-M.MUSIC_DELAY, M.MUSIC_DB = 5, 0 -- seconds of quiet, then the track at its own level
+M.MUSIC_DELAY = 5 -- seconds of quiet, then the track at the Music level setting
 M.DETAIL = 10 -- how much farther the engine keeps detailed models, for a camera far from the game's own
 M.CHEST = 1.2 -- metres over the feet that an orbit and the focus aim at
 
@@ -195,6 +195,18 @@ function M.status()
 	return "LIVE"
 end
 
+-- The planet's exposure and bloom threshold, for filters that nudge them (look.planet).
+local function read_planet(api)
+	look.planet = {}
+	if not api.world.planet_shading then return end
+	local ok, exposure = pcall(api.world.planet_shading, "exposure")
+	if ok and type(exposure) == "number" then look.planet.exposure = exposure end
+	local got, bloom = pcall(api.world.planet_shading, "bloom_threshold_offset")
+	if got and type(bloom) == "table" and tonumber(bloom[1]) then
+		look.planet.bloom, look.planet.bloom_y = tonumber(bloom[1]), tonumber(bloom[2])
+	end
+end
+
 -- Opens Photo Mode. Answers true, or false and the reason it gave the player.
 function M.start()
 	local api = M.api
@@ -222,6 +234,7 @@ function M.start()
 	local chest = my_chest()
 	M.cam = camera.new(pose, chest)
 	M.cam.fov = pose.fov
+	M.start_fov = pose.fov
 	M.anchor = chest or pose.position
 	M.pose = pose
 	M.alone = api.game.alone()
@@ -235,12 +248,13 @@ function M.start()
 	api.music.pause()
 	M.music_time, M.music_started = 0, false
 	M.controls_hidden, M.sky_warned = false, false
-	M.helldivers, M.flashlight, M.hidden = "shown", false, {}
+	M.helldivers, M.hidden = "shown", {}
 	M.sky = M.default_sky()
 	M.sky_brightness = M.SKY_BRIGHTNESS
 	M.cape = true
-	helldiver.begin(api.game.my_unit())
+	helldiver.begin(api.game.my_unit(), api)
 	-- The planet's fog as the mission set it, before any change, for the Fog slider.
+	read_planet(api)
 	look.planet_fog = nil
 	if api.world.planet_shading then
 		local fog = api.world.planet_shading("fog_depth_range")
@@ -284,13 +298,6 @@ function M.set_helldivers(which)
 	if not M.cape and not helldiver.hidden then M.set_cape(false) end
 end
 
-function M.set_flashlight(on)
-	local unit = M.api.game.my_unit()
-	if not unit then return false end
-	M.flashlight = on and true or false
-	return M.api.world.flashlight(unit, on)
-end
-
 function M.stop()
 	if not M.active then return end
 	local api = M.api
@@ -317,11 +324,6 @@ function M.stop()
 	lights.clear()
 	sky.hide()
 	show_helldivers()
-	if M.flashlight then
-		local unit = api.game.my_unit()
-		if unit then pcall(api.world.flashlight, unit, false) end
-		M.flashlight = false
-	end
 	M.sky = "off"
 end
 
@@ -464,13 +466,12 @@ function M.frame(dt)
 	look.apply(api, focus)
 	helldiver.apply(api)
 	M.settle_pose(dt)
-	M.flare_at = M.sun_on_screen(pose)
 	if settings.get("music") and not M.music_started then
 		M.music_time = M.music_time + dt
 		if M.music_time >= M.MUSIC_DELAY then
 			M.music_started = true
 			-- The ship plays its own music, in a world of its own: it only comes back.
-			if M.place == "ship" then api.music.resume() else music.start(M.MUSIC_DB) end
+			if M.place == "ship" then api.music.resume() else music.start(settings.get("music_db")) end
 		end
 	end
 	music.tick(dt)
@@ -505,37 +506,6 @@ function M.set_pose(id)
 	if ok then return nil end
 	if why == "no_helldiver" then return "No Helldiver to pose." end
 	return "The Helldiver can't take that pose here."
-end
-
--- Toward the sun: the one set with Sun position, else the planet's, else the default sun of the Light
--- tab when the planet's can't be read.
-function M.sun_dir()
-	local dir = look.sun_dir()
-	if dir then return dir end
-	local api = M.api
-	if api.world.sun then
-		local ok, planet = pcall(api.world.sun)
-		if ok and planet then return planet end
-	end
-	if not M.sun_warned then
-		M.sun_warned = true
-		obsidian.log("photo mode: the planet's sun direction can't be read; the flare uses the default sun")
-	end
-	return look.sun_dir(true)
-end
-
--- Where the sun is on screen for the lens flare, or nil: off, below the horizon or behind the camera.
--- The level's collision has unseen walls and ceilings, so nothing checks what stands in the way.
-function M.sun_on_screen(pose)
-	if (look.get("flare") or 0) <= 0 or not pose then return nil end
-	local dir = M.sun_dir()
-	if not dir or dir.z < -0.02 then return nil end
-	local f = camera.forward(pose.yaw, pose.pitch)
-	if f.x * dir.x + f.y * dir.y + f.z * dir.z <= 0.05 then return nil end
-	local p = pose.position
-	local x, y = M.api.world.to_screen({ x = p.x + dir.x * 100, y = p.y + dir.y * 100, z = p.z + dir.z * 100 })
-	if not x then return nil end
-	return { x = x, y = y }
 end
 
 -- Focus on what's under the cursor: depth of field on, at that distance.
@@ -574,9 +544,8 @@ function M.view()
 		}
 	end
 	local film = nil
-	if (look.get("grain") or 0) > 0 or (look.get("flare") or 0) > 0 or (look.get("leak") or 0) > 0 then
-		film = { grain = look.get("grain"), grain_type = look.get("grain_type"), grain_size = look.get("grain_size"), flare = look.get("flare"),
-			flare_at = M.flare_at, leak = look.get("leak"), leak_rgb = look.color(look.get("leak_color")) }
+	if (look.get("grain") or 0) > 0 then
+		film = { grain = look.get("grain"), grain_type = look.get("grain_type"), grain_size = look.get("grain_size") }
 	end
 	return {
 		film = film,

@@ -107,4 +107,23 @@ test("hours_blend_through_the_day_and_pick_a_sky", function()
 	eq(look.sky_of(18), "dusk")
 end)
 
+test("filters_nudge_the_planets_exposure_and_bloom_by_a_little", function()
+	local look = obsidian.module("src/look")
+	look.reset()
+	look.planet = { exposure = 1.4, bloom = 0.83 }
+	for _, id in ipairs({ "cinematic", "vivid", "sunlit" }) do
+		look.use_filter(id)
+		local e, b = look.state.exposure, look.state.bloom
+		eq(e > 1.4 and e <= 1.4 * 1.1 + 1e-9, true, id .. " exposure a step over the planet's")
+		eq(b < 0.83 and b >= 0.79, true, id .. " bloom threshold a step under the planet's")
+	end
+	look.planet = {}
+	look.use_filter("vivid")
+	near(look.state.exposure, look.DEFAULTS.exposure * 1.08, "the default stands in for an unread planet")
+	for _, f in ipairs(look.FILTERS) do
+		for k in pairs(f.set or {}) do eq(k ~= "flare" and k ~= "leak", true, f.id .. " sets no flare or leak") end
+	end
+	look.reset()
+end)
+
 return T

@@ -7,10 +7,11 @@ local panel = obsidian.module("src/panel")
 
 local api = obsidian.import("obsidian.api")
 
--- The camera, the panel and pictures came with Obsidian API 1.23.0; the panel's tabs as icons, its
--- header button, opacity and scale with 1.24.0, which an older API leaves out.
-if not (api and api.world and api.world.camera and api.world.camera.take and api.menu and api.menu.panel and api.capture) then
-	obsidian.log("photo mode: needs Obsidian API 1.23.0 or later")
+-- The camera, the panel and pictures came with Obsidian API 1.23.0; placing, posing and the parts of a
+-- Helldiver and tab headings with 1.29.0.
+if not (api and api.world and api.world.camera and api.world.camera.take and api.menu and api.menu.panel and api.capture
+	and api.world.place and api.world.part_visible) then
+	obsidian.log("photo mode: needs Obsidian API 1.29.0 or later")
 	return
 end
 

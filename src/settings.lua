@@ -5,7 +5,7 @@ local M = {}
 M.KEPT = {
 	move_speed = 6, look_speed = 1, smoothing = 0.4, ground = true, range = 150, invert = false,
 	format = "png", quality = 95, aspect = "screen", bars = false, grid = "off",
-	music = true, guide = true, time = 0,
+	music = true, music_db = -6, guide = true, time = 0,
 }
 
 M.values = {}
@@ -39,6 +39,13 @@ function M.set(k, v)
 	local s = storage()
 	if s then pcall(s.set, "setting/" .. k, v) end
 	return true
+end
+
+-- Some of the kept settings back to their defaults.
+function M.reset_keys(keys)
+	for _, k in ipairs(keys) do
+		if M.KEPT[k] ~= nil then M.set(k, M.KEPT[k]) end
+	end
 end
 
 function M.reset()

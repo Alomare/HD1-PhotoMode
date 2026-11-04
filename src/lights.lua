@@ -62,8 +62,17 @@ end
 function M.clear()
 	for _, l in ipairs(M.list) do
 		if l.handle then pcall(l.handle.remove, l.handle) end
+		l.handle = nil
 	end
 	M.list = {}
+end
+
+-- Whether a light is still one of the placed ones.
+function M.has(l)
+	for _, other in ipairs(M.list) do
+		if other == l then return true end
+	end
+	return false
 end
 
 -- Three lights around a subject at `at`, seen from a camera turned `yaw`: a warm key in front and to

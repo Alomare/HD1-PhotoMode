@@ -1,17 +1,27 @@
--- The player's Helldiver for a picture: its size, a nudge from where it stood, a turn and a pose. Seen
--- on this machine only, and all of it goes back when Photo Mode closes.
+-- The player's Helldiver for a picture: the size, a nudge from where it stood, a turn, a pose and the
+-- parts shown. Seen on this machine only, and all of it goes back when Photo Mode closes.
 --
--- Size, place and turn are set on the avatar's unit every frame, with the scene nodes of the armour,
--- weapons and backpack linked to it (api.world.parts_of), as a stopped world doesn't move them itself.
--- The game moves the avatar again as soon as it runs, so they hold while the game is stopped. The game
--- keeps its own position in the avatar's mover, which nothing here changes, so it carries on from where
--- the Helldiver was.
+-- Place and turn go through api.world.place every frame, which moves the Helldiver the way the game's
+-- own teleport does, in a stopped game too, and keeps the physics mover above where it stood: a mover
+-- under the ground would fall out of the level, and the game removes what falls out. The size is set
+-- on the avatar's unit, with the armour, weapons and backpack linked to it updated after.
 --
--- A pose is one of the game's animation events for a Helldiver, sent to the avatar. A stopped world
--- doesn't play animations, so the game runs for a moment (Pose time) to blend it in, then stops again.
-local M = { unit = nil, base = nil, settle = 0, hidden = false }
+-- A pose is one of the game's animation events for a Helldiver (api.world.pose, which ends the one
+-- before it). A stopped world doesn't play animations, so the game runs for a moment (Pose time) to
+-- blend it in, then stops again. Parts hide one by one through api.world.part_visible.
+local M = { unit = nil, base = nil, settle = 0, hidden = false, api = nil }
 
 M.DEFAULTS = { scale = 1, side = 0, forward = 0, up = 0, turn = 0, pose = "game", pose_time = 0.6 }
+
+-- The parts that hide on their own, and their names in api.world.HELLDIVER_PARTS.
+M.PARTS = {
+	{ id = "helmet", label = "Helmet", part = "helmet" },
+	{ id = "armour", label = "Heavy armour", part = "heavy_armor" },
+	{ id = "boots", label = "Boots", part = "boots" },
+	{ id = "weapon", label = "Weapon in hand", part = "weapon" },
+	{ id = "holstered", label = "Other weapons", part = "holstered" },
+	{ id = "pack", label = "Backpack", part = "backpack" },
+}
 M.state = {}
 
 -- Animation events the game's scripts and its animation list have for a Helldiver
@@ -50,6 +60,38 @@ function M.get(k) return M.state[k] end
 
 function M.set(k, v) M.state[k] = v end
 
+local function part_of(id)
+	for _, p in ipairs(M.PARTS) do
+		if p.id == id then return p.part end
+	end
+	return nil
+end
+
+-- The units of a part on the Helldiver.
+function M.part_units(api, unit, id)
+	local part = part_of(id)
+	if not (part and unit and api.world.part_units) then return {} end
+	return api.world.part_units(unit, part)
+end
+
+-- Shows or hides a part. Answers false when the Helldiver has none of it.
+function M.set_part(api, id, on)
+	local part = part_of(id)
+	if not (part and M.unit) then return false end
+	M.state["show_" .. id] = on ~= false
+	return api.world.part_visible(M.unit, part, on ~= false) == true
+end
+
+function M.part_shown(id) return M.state["show_" .. id] ~= false end
+
+-- Every hidden part back.
+function M.show_parts(api)
+	for _, p in ipairs(M.PARTS) do
+		if M.state["show_" .. p.id] == false and M.unit then pcall(api.world.part_visible, M.unit, p.part, true) end
+		M.state["show_" .. p.id] = nil
+	end
+end
+
 -- Whether size, place or turn differ from the Helldiver as found.
 function M.moved()
 	local s = M.state
@@ -72,70 +114,48 @@ function M.poses(unit)
 end
 
 -- Notes where the Helldiver stands, before any change. unit: the avatar.
-function M.begin(unit)
+function M.begin(unit, api)
 	M.reset()
-	M.unit, M.base, M.settle = nil, nil, 0
-	local U, Q = g("Unit"), g("Quaternion")
-	if not (unit and U and Q) then return false end
-	local ok, base = pcall(function()
-		local p, r, s = U.local_position(unit, 0), U.local_rotation(unit, 0), U.local_scale(unit, 0)
-		local x, y, z, w = Q.to_elements(r)
-		return { pos = { x = p.x, y = p.y, z = p.z }, rot = { x, y, z, w }, scale = { x = s.x, y = s.y, z = s.z } }
-	end)
-	if not ok then
-		obsidian.log("photo mode: helldiver: " .. tostring(base))
+	M.unit, M.base, M.settle, M.api = nil, nil, 0, api
+	local U = g("Unit")
+	if not (unit and U and api) then return false end
+	local ok, pos, angle = pcall(api.world.placement, unit)
+	local got, s = pcall(U.local_scale, unit, 0)
+	if not (ok and pos and got) then
+		obsidian.log("photo mode: helldiver: " .. tostring(ok and "no placement" or pos))
 		return false
 	end
-	M.unit, M.base = unit, base
+	M.unit, M.base = unit, { pos = pos, angle = angle or 0, scale = { x = s.x, y = s.y, z = s.z } }
 	return true
 end
 
--- Where the unit goes for the state: { pos, rot (elements), scale } as tables. Pure, for the tests.
+-- Where the Helldiver goes for the state: { pos, angle (degrees), scale } as tables. Pure, for the
+-- tests. The angle is the game's rotation_angle: 0 faces +y, and it grows turning left seen from above.
 function M.target(base, s)
-	local bx, by, bz, bw = base.rot[1], base.rot[2], base.rot[3], base.rot[4]
-	-- The base rotation's own forward (+y) and right (+x), turned into the level.
-	local function rotate(vx, vy, vz)
-		local tx = 2 * (by * vz - bz * vy)
-		local ty = 2 * (bz * vx - bx * vz)
-		local tz = 2 * (bx * vy - by * vx)
-		return vx + bw * tx + (by * tz - bz * ty), vy + bw * ty + (bz * tx - bx * tz), vz + bw * tz + (bx * ty - by * tx)
-	end
-	local fx, fy = rotate(0, 1, 0)
-	local rx, ry = rotate(1, 0, 0)
+	local a = math.rad(base.angle)
+	local fx, fy = -math.sin(a), math.cos(a)
+	local rx, ry = math.cos(a), math.sin(a)
 	local pos = { x = base.pos.x + rx * s.side + fx * s.forward, y = base.pos.y + ry * s.side + fy * s.forward, z = base.pos.z + s.up }
-	-- A turn about the level's up axis, after the base rotation.
-	local half = math.rad(s.turn) / 2
-	local tz, tw = math.sin(half), math.cos(half)
-	local rot = { tw * bx - tz * by, tw * by + tz * bx, tw * bz + tz * bw, tw * bw - tz * bz }
-	return { pos = pos, rot = rot, scale = { x = base.scale.x * s.scale, y = base.scale.y * s.scale, z = base.scale.z * s.scale } }
+	return { pos = pos, angle = base.angle + s.turn, scale = { x = base.scale.x * s.scale, y = base.scale.y * s.scale, z = base.scale.z * s.scale } }
 end
 
--- The game puts the avatar where its mover is every frame, stopped or not, so the mover goes along.
 local function place(api, unit, t)
-	local U, V3, Q, W = g("Unit"), g("Vector3"), g("Quaternion"), g("World")
-	U.set_local_position(unit, 0, V3(t.pos.x, t.pos.y, t.pos.z))
-	U.set_local_rotation(unit, 0, Q.from_elements(t.rot[1], t.rot[2], t.rot[3], t.rot[4]))
+	local U, V3 = g("Unit"), g("Vector3")
+	api.world.place(unit, t.pos, t.angle, M.base.pos.z)
 	-- A hidden Helldiver is shrunk to nothing by api.world.visible, and stays so.
 	local s = M.hidden and (api.world.SHRUNK or 1e-4) or 1
 	U.set_local_scale(unit, 0, V3(t.scale.x * s, t.scale.y * s, t.scale.z * s))
-	local Mover = g("Mover")
-	if Mover and type(U.mover) == "function" then
-		local ok, mover = pcall(U.mover, unit)
-		if ok and mover then pcall(Mover.set_position, mover, V3(t.pos.x, t.pos.y, t.pos.z)) end
-	end
 	local st = api.game.state()
 	local proxy = type(st) == "table" and st.world_proxy
 	local world = proxy and proxy:get_world()
 	if not world then return end
-	local parts = api.world.parts_of and api.world.parts_of(unit) or { unit }
-	for _, part in ipairs(parts) do pcall(W.update_unit, world, part) end
+	for _, part in ipairs(api.world.parts_of(unit)) do pcall(g("World").update_unit, world, part) end
 end
 
 -- Once a frame while Photo Mode is open.
 function M.apply(api)
 	if not (M.unit and M.base) then return end
-	local U = g("Unit")
-	local ok, alive = pcall(U.alive, M.unit)
+	local ok, alive = pcall(g("Unit").alive, M.unit)
 	if not (ok and alive) then
 		M.unit, M.base = nil, nil
 		return
@@ -151,15 +171,19 @@ function M.apply(api)
 	if not M.placed then pcall(place, api, M.unit, M.target(M.base, M.DEFAULTS)) end
 end
 
--- Sends a pose's animation event. Answers true when it went, false and why not.
+-- Sends a pose's animation event, after ending the one before. Answers true when it went, false and
+-- why not.
 function M.pose(id)
 	M.state.pose = id
-	local unit = M.unit
-	if not unit then return false, "no_helldiver" end
+	local unit, api = M.unit, M.api
+	if not (unit and api) then return false, "no_helldiver" end
 	for _, p in ipairs(M.POSES) do
 		if p.id == id then
-			if not p.event then return true end
-			local ok = pcall(g("Unit").animation_event, unit, p.event)
+			if not p.event then
+				if api.world.end_pose(unit) then M.settle = M.state.pose_time end
+				return true
+			end
+			local ok = api.world.pose(unit, p.event)
 			if not ok then return false, "no_event" end
 			M.settle = M.state.pose_time
 			return true
@@ -168,12 +192,15 @@ function M.pose(id)
 	return false, "unknown"
 end
 
--- Puts the Helldiver back as found.
+-- Puts the Helldiver back as found: the pose ended, every part shown, the size and place it had.
 function M.restore(api)
+	M.show_parts(api)
 	if M.unit and M.base then
-		local U = g("Unit")
-		local ok, alive = pcall(U.alive, M.unit)
-		if ok and alive then pcall(place, api, M.unit, M.target(M.base, M.DEFAULTS)) end
+		local ok, alive = pcall(g("Unit").alive, M.unit)
+		if ok and alive then
+			pcall(api.world.end_pose, M.unit)
+			pcall(place, api, M.unit, M.target(M.base, M.DEFAULTS))
+		end
 	end
 	M.unit, M.base, M.placed, M.settle = nil, nil, false, 0
 	M.reset()

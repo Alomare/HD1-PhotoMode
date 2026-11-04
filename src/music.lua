@@ -50,6 +50,13 @@ function M.start(db)
 	return begin()
 end
 
+-- A new level for the track, at once if it plays.
+function M.set_db(db)
+	M.db = db or M.db
+	local T = g("TimpaniWorld")
+	if M.state == "playing" and M.id and M.sound and T then pcall(T.set_parameter, M.sound, M.id, "volume", 10 ^ (M.db / 20)) end
+end
+
 -- Once a frame while Photo Mode is open: the world moves on, and the track starts again when it ends.
 function M.tick(dt)
 	if not M.world then return end

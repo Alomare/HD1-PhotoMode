@@ -2,9 +2,8 @@
 local T = {}
 local function test(name, fn) T[#T + 1] = { name, fn } end
 
-local function base(yaw_deg)
-	local half = math.rad(yaw_deg) / 2
-	return { pos = { x = 10, y = 20, z = 1 }, rot = { 0, 0, math.sin(half), math.cos(half) }, scale = { x = 1, y = 1, z = 1 } }
+local function base(angle)
+	return { pos = { x = 10, y = 20, z = 1 }, angle = angle, scale = { x = 1, y = 1, z = 1 } }
 end
 
 local function state(t)
@@ -21,8 +20,7 @@ test("the_defaults_leave_the_helldiver_where_it_stood", function()
 	near(t.pos.x, 10)
 	near(t.pos.y, 20)
 	near(t.pos.z, 1)
-	near(t.rot[3], math.sin(math.rad(15)))
-	near(t.rot[4], math.cos(math.rad(15)))
+	near(t.angle, 30)
 	near(t.scale.x, 1)
 end)
 
@@ -38,8 +36,7 @@ end)
 test("a_turn_adds_to_the_helldivers_own_and_size_scales_every_axis", function()
 	local h = obsidian.module("src/helldiver")
 	local t = h.target(base(30), state({ turn = 60, scale = 2 }))
-	near(t.rot[3], math.sin(math.rad(45)), "30 + 60 degrees", 1e-9)
-	near(t.rot[4], math.cos(math.rad(45)), nil, 1e-9)
+	near(t.angle, 90, "30 + 60 degrees", 1e-9)
 	near(t.scale.x, 2)
 	near(t.scale.z, 2)
 end)
@@ -65,16 +62,15 @@ end)
 test("a_pose_sends_its_event_and_asks_for_the_pose_time", function()
 	local h = obsidian.module("src/helldiver")
 	local sent = nil
-	rawset(_G, "Unit", { animation_event = function(_, e) sent = e end })
 	h.reset()
-	h.unit = {}
+	h.unit, h.api = {}, { world = { pose = function(_, e) sent = e return true end } }
 	h.set("pose_time", 0.8)
 	eq(h.pose("salute"), true)
 	eq(sent, "salute")
 	near(h.settle, 0.8)
 	h.unit, h.settle = nil, 0
 	eq(select(2, h.pose("salute")), "no_helldiver")
-	rawset(_G, "Unit", nil)
+	h.api = nil
 end)
 
 test("grain_scales_with_the_amount_and_the_screen", function()
@@ -84,20 +80,18 @@ test("grain_scales_with_the_amount_and_the_screen", function()
 	eq(overlay.grain_count(0.5, 3840, 2160), overlay.GRAIN_MAX * 2)
 end)
 
-test("the_film_effects_draw_and_stay_off_at_zero", function()
+test("grain_is_in_step_with_the_amount_so_the_low_end_is_fine", function()
 	local overlay = obsidian.module("src/overlay")
-	local rects, polys = 0, 0
-	local kit = { rect = function() rects = rects + 1 end, poly = function(_, pts) polys = polys + 1 eq(#pts % 2, 0) end }
-	eq(overlay.draw_flare(kit, { flare = 0, flare_at = { x = 100, y = 100 } }, 1920, 1080, 1), false)
-	eq(overlay.draw_flare(kit, { flare = 1, flare_at = nil }, 1920, 1080, 1), false, "no sun in view")
-	eq(overlay.draw_flare(kit, { flare = 1, flare_at = { x = 4000, y = 100 } }, 1920, 1080, 1), false, "far off screen")
-	eq(overlay.draw_flare(kit, { flare = 1, flare_at = { x = 400, y = 800 } }, 1920, 1080, 1), true)
-	eq(overlay.draw_leak(kit, { leak = 0 }, 1920, 1080, 1), 0)
-	local strips = overlay.draw_leak(kit, { leak = 0.5, leak_rgb = { 1, 0.6, 0.2 } }, 1920, 1080, 1)
-	eq(strips >= 200, true, "fine strips, so the fade has no visible steps")
+	local rects = 0
+	local kit = { rect = function() rects = rects + 1 end }
+	eq(overlay.grain_strength(0), 0)
+	eq(overlay.grain_strength(0.05), 0.05, "a twentieth of the most, not a third as before")
+	eq(overlay.grain_strength(1), 1)
 	local specks = overlay.draw_grain(kit, { grain = 0.1, grain_type = "color" }, 1920, 1080, 1)
 	eq(math.abs(specks - 900) <= 60, true, "about a tenth of the most, one per cell of an even grid")
-	eq(polys > 0 and rects >= specks + strips, true)
+	eq(rects, specks)
+	eq(overlay.draw_flare, nil, "no lens flare")
+	eq(overlay.draw_leak, nil, "no light leak")
 end)
 
 test("grain_from_the_texture_covers_the_screen_and_falls_back_to_specks", function()
@@ -160,6 +154,39 @@ test("every_tab_icon_is_convex_polygons_on_the_grid", function()
 	end
 	eq(icons.of("camera", false), "weapons", "an older API gets the glyph")
 	eq(icons.of("camera", true), icons.camera)
+end)
+
+test("a_pose_goes_through_the_api_and_as_it_was_ends_it", function()
+	local helldiver = obsidian.module("src/helldiver")
+	local sent = {}
+	local api = { world = { pose = function(_, e) sent[#sent + 1] = e return true end,
+		end_pose = function() sent[#sent + 1] = "end" return true end } }
+	helldiver.unit, helldiver.api, helldiver.settle = "unit", api, 0
+	eq(helldiver.pose("radio"), true)
+	eq(sent[1], "radio_activate")
+	eq(helldiver.settle > 0, true, "the game runs to blend it in")
+	helldiver.settle = 0
+	helldiver.pose("game")
+	eq(sent[2], "end", "As it was ends the pose")
+	eq(helldiver.settle > 0, true, "and lets the game run to clear it")
+	helldiver.unit, helldiver.api = nil, nil
+end)
+
+test("parts_hide_through_the_api_and_all_come_back", function()
+	local helldiver = obsidian.module("src/helldiver")
+	local calls = {}
+	local api = { world = { part_visible = function(_, part, on) calls[#calls + 1] = part .. "=" .. tostring(on) return part ~= "backpack" end,
+		part_units = function() return {} end } }
+	helldiver.unit = "me"
+	eq(helldiver.set_part(api, "armour", false), true)
+	eq(calls[1], "heavy_armor=false", "the API's name for the part")
+	eq(helldiver.part_shown("armour"), false)
+	eq(helldiver.set_part(api, "pack", false), false, "a part the Helldiver doesn't have")
+	calls = {}
+	helldiver.show_parts(api)
+	eq(table.concat(calls, " "), "heavy_armor=true backpack=true")
+	eq(helldiver.part_shown("armour"), true)
+	helldiver.unit = nil
 end)
 
 return T

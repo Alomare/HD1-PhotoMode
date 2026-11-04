@@ -38,20 +38,33 @@ function M.fog_range(thickness, planet)
 	return { base[1] / thickness, base[2] / thickness }
 end
 
--- Ready-made looks. Each sets some of the values below; any of them can be changed after.
+-- The planet's own exposure and bloom threshold, read when Photo Mode opens (session.lua), for the
+-- filters that nudge them. nil where they can't be read: the defaults below stand in.
+M.planet = {}
+
+-- Ready-made looks. Each sets some of the values below; any of them can be changed after. `scale`
+-- multiplies the planet's value and `shift` adds to it, so a filter brightens a dark planet and a
+-- bright one alike by a little.
 M.FILTERS = {
 	{ id = "none", label = "None" },
-	{ id = "cinematic", label = "Cinematic", set = { vignette = 0.65, exposure = 1.35, bloom = 0.12 } },
+	{ id = "cinematic", label = "Cinematic", set = { vignette = 0.55 }, scale = { exposure = 1.04 }, shift = { bloom = -0.02 } },
 	{ id = "golden", label = "Golden hour", set = { sun = true, sun_color = "warm", sun_power = 7, sun_height = 12, fog_color = "sunset", fill = 0.4, vignette = 0.4 } },
 	{ id = "cold", label = "Cold front", set = { sun = true, sun_color = "cold", sun_power = 3, sun_height = 30, fog = 1.8, fog_color = "cold", fill = 0.6, grading = false } },
 	{ id = "overcast", label = "Overcast", set = { sun = true, sun_color = "white", sun_power = 1.2, sun_height = 60, fog = 1.8, fog_color = "white", fill = 1.2, clouds = 0 } },
 	{ id = "moonlight", label = "Moonlight", set = { time = 0, sun = true, sun_color = "cold", sun_power = 2, sun_height = 25, fill = 0.3, vignette = 0.5 } },
 	{ id = "toxic", label = "Toxic", set = { fog = 1.8, fog_color = "green", fill = 0.5, tint = 0.12, tint_color = "green" } },
 	{ id = "ember", label = "Ember", set = { fog = 1.8, fog_color = "red", sun = true, sun_color = "sunset", sun_power = 5, sun_height = 8, tint = 0.08, tint_color = "red" } },
-	{ id = "vivid", label = "Vivid", set = { exposure = 1.6, bloom = 0.25, grading = true } },
-	{ id = "film", label = "Old film", set = { grain = 0.45, grain_type = "mono", leak = 0.35, leak_color = "amber", vignette = 0.7, tint = 0.06, tint_color = "warm" } },
-	{ id = "sunlit", label = "Sunlit", set = { flare = 0.8, exposure = 1.7, bloom = 0.15, grain = 0.15, grain_type = "color" } },
+	{ id = "vivid", label = "Vivid", set = { grading = true }, scale = { exposure = 1.08 }, shift = { bloom = -0.03 } },
+	{ id = "film", label = "Old film", set = { grain = 0.5, grain_type = "mono", vignette = 0.7, tint = 0.06, tint_color = "warm" } },
+	{ id = "sunlit", label = "Sunlit", set = { grain = 0.08, grain_type = "color" }, scale = { exposure = 1.1 }, shift = { bloom = -0.02 } },
 }
+
+-- The planet's value of a look field, or the default where it isn't known.
+function M.planet_value(k)
+	local v = M.planet[k]
+	if v == nil then return M.DEFAULTS[k] end
+	return v
+end
 
 -- Film grain: specks of grey, or of color, over the picture.
 M.GRAINS = { { id = "mono", label = "Mono" }, { id = "color", label = "Color" } }
@@ -60,11 +73,12 @@ M.GRAINS = { { id = "mono", label = "Mono" }, { id = "color", label = "Color" } 
 -- What a filter changes: everything on the Look, Lens and Film tabs. The sun and the time stay as they
 -- are unless a filter sets them.
 local FIELDS = { "exposure", "vignette", "bloom", "clouds", "dust", "grading", "fog", "fog_color", "fill", "tint", "tint_color",
-	"grain", "grain_type", "grain_size", "flare", "leak", "leak_color" }
+	"grain", "grain_type", "grain_size" }
+M.FIELDS = FIELDS
 
 M.DEFAULTS = { exposure = 1.5, vignette = 0.5, bloom = 0.2, clouds = 0.5, dust = 0.5, grading = true, fog = 1, fog_color = "white",
 	sun = false, sun_az = 135, sun_height = 35, sun_color = "white", sun_power = 5, fill = 0.5, time = 12, tint = 0, tint_color = "warm",
-	grain = 0, grain_type = "mono", grain_size = 1, flare = 0, leak = 0, leak_color = "warm",
+	grain = 0, grain_type = "mono", grain_size = 1,
 	dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true }
 
 M.state = {}
@@ -96,6 +110,8 @@ function M.use_filter(id)
 		if f.id == id then
 			for _, k in ipairs(FIELDS) do M.state[k] = nil end
 			for k, v in pairs(f.set or {}) do M.state[k] = v end
+			for k, v in pairs(f.scale or {}) do M.state[k] = M.planet_value(k) * v end
+			for k, v in pairs(f.shift or {}) do M.state[k] = math.max(0, M.planet_value(k) + v) end
 			M.state.filter = id
 			return true
 		end
@@ -135,7 +151,7 @@ function M.wanted(focus_override)
 	local s, out = M.state, {}
 	if s.exposure then out.exposure = { "scalar", s.exposure } end
 	if s.vignette then out.vignette_opacity = { "scalar", s.vignette } end
-	if s.bloom then out.bloom_threshold_offset = { "vector2", { s.bloom, 0.385 } } end
+	if s.bloom then out.bloom_threshold_offset = { "vector2", { s.bloom, M.planet.bloom_y or 0.385 } } end
 	if s.clouds then out.cloud_shadow_opacity = { "scalar", s.clouds } end
 	if s.dust then out.dust_opacity = { "scalar", s.dust } end
 	if s.grading ~= nil then out.color_grading_enabled = { "scalar", s.grading and 1 or 0 } end
