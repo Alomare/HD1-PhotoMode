@@ -1,12 +1,12 @@
 {
   "obsidian": 1,
   "id": "alomare.photomode",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "name": {
     "en": "Photo Mode"
   },
   "description": {
-    "en": "Stops a mission, or the ship, and clears the screen for pictures: a free, orbiting or isometric camera, lens and look controls, the time of day, placed lights, a sky over the level, and pictures saved to the Pictures folder. Opens with F7 or from the pause menu."
+    "en": "Stops a mission, or the ship, and clears the screen for pictures: a free, orbiting or isometric camera, lens, look and film controls, the time of day, placed lights, a sky over the level, Helldiver poses, and pictures saved to the Pictures folder. Opens with F7 or from the pause menu."
   },
   "authors": [
     "Alomare"
@@ -21,6 +21,8 @@
     "src/lights.lua",
     "src/sky.lua",
     "src/overlay.lua",
+    "src/icons.lua",
+    "src/helldiver.lua",
     "src/panel.lua",
     "src/music.lua",
     "src/gizmo.lua",

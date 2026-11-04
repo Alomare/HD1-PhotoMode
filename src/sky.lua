@@ -21,13 +21,27 @@ function M.unit_of(name) return "photomode/sky/" .. name end
 
 local function g(name) return rawget(_G, name) end
 
+-- The dome's "intensity", on every material of every mesh, the way the game's MaterialAux.set_scalar
+-- reaches them: Unit.mesh, then Mesh.material. Answers how many materials took it.
 function M.set_brightness(value)
 	local p = M.prop
-	if not (p and p:alive()) then return end
-	pcall(function()
-		local mat = g("Unit").material(p.unit, M.MATERIAL)
-		g("Material").set_scalar(mat, "intensity", value)
+	if not (p and p:alive()) then return 0 end
+	local U, Mesh, Mat = g("Unit"), g("Mesh"), g("Material")
+	local count = 0
+	local ok, err = pcall(function()
+		for i = 0, U.num_meshes(p.unit) - 1 do
+			local mesh = U.mesh(p.unit, i)
+			for j = 0, Mesh.num_materials(mesh) - 1 do
+				Mat.set_scalar(Mesh.material(mesh, j), "intensity", value)
+				count = count + 1
+			end
+		end
 	end)
+	if (not ok or count == 0) and not M.brightness_warned then
+		M.brightness_warned = true
+		obsidian.log("photo mode: sky brightness: " .. tostring(ok and "no materials" or err))
+	end
+	return count
 end
 
 -- Shows the named sky around pos, or none for nil. Answers true, or false and why not.

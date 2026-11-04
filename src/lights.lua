@@ -16,6 +16,15 @@ local function opts_of(l)
 		spot = l.shape == "spot" and l.angle or nil, yaw = l.yaw, pitch = l.pitch }
 end
 
+-- The lowest number no placed light has, so numbers start again at 1 once the lights are gone.
+function M.free_number()
+	local used = {}
+	for _, l in ipairs(M.list) do used[l.number] = true end
+	local n = 1
+	while used[n] do n = n + 1 end
+	return n
+end
+
 -- A light at pos, aimed as the camera looks. Answers it, or nil and why not.
 function M.add(api, pos, yaw, pitch)
 	if #M.list >= M.MAX then return nil, "full" end
@@ -23,8 +32,7 @@ function M.add(api, pos, yaw, pitch)
 	l.yaw, l.pitch = yaw or 0, pitch or -45
 	local handle, why = api.world.light(pos, opts_of(l))
 	if not handle then return nil, why end
-	M.made = M.made + 1
-	l.handle, l.number, l.pos = handle, M.made, { x = pos.x, y = pos.y, z = pos.z }
+	l.handle, l.number, l.pos = handle, M.free_number(), { x = pos.x, y = pos.y, z = pos.z }
 	M.list[#M.list + 1] = l
 	return l
 end

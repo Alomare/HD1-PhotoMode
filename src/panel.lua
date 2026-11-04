@@ -7,6 +7,8 @@ local lights = obsidian.module("src/lights")
 local sky = obsidian.module("src/sky")
 local overlay = obsidian.module("src/overlay")
 local session = obsidian.module("src/session")
+local icons = obsidian.module("src/icons")
+local helldiver = obsidian.module("src/helldiver")
 
 local M = {}
 
@@ -115,6 +117,61 @@ local function look_tab(page)
 	page:slider("Screen dust", looked("dust", { min = 0, max = 1, step = 0.05, format = "%.2f", enabled = function() return session.supports("dust") end, help = "The planet's scrolling dust layer, drawn flat over the screen for the top-down view. Off by default in Photo Mode; R restores the planet's value." }))
 end
 
+local GRAINS = choices(look.GRAINS)
+
+local function film_tab(page)
+	page:header("Grain")
+	page:slider("Grain", looked("grain", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Specks over the picture, like film or a high ISO. 0 turns them off." }))
+	page:choice("Grain type", looked("grain_type", { choices = GRAINS, help = "Mono specks are light and dark grey. Color specks are red, green and blue." }))
+	page:slider("Grain size", looked("grain_size", { min = 1, max = 4, step = 0.5, format = "%.1f px", help = "How big each speck is, on a 1080 line screen." }))
+	page:header("Lens")
+	page:slider("Lens flare", looked("flare", { min = 0, max = 1, step = 0.05, format = "%.2f",
+		help = "A glow, a streak and rings from the sun while it's in view and not behind anything. Sun position on the Light tab moves it." }))
+	page:slider("Light leak", looked("leak", { min = 0, max = 1, step = 0.05, format = "%.2f", help = "Light spilling in from the corners, as through a worn camera body." }))
+	page:choice("Leak color", looked("leak_color", { choices = COLORS, help = "The color of the light leak." }))
+	page:label(function() return "Grain, flare and leak are drawn over the picture and kept in photos." end)
+end
+
+local function alone_only()
+	return session.alone, "Only with nobody else in the lobby: the game moves the Helldiver back while it runs."
+end
+
+local function hd(k, extra)
+	local opts = { get = function() return helldiver.get(k) end, set = function(v) helldiver.set(k, v) end, default = helldiver.DEFAULTS[k], enabled = alone_only }
+	for key, v in pairs(extra or {}) do opts[key] = v end
+	return opts
+end
+
+local function helldiver_tab(page)
+	page:choice("Visibility", { choices = { { id = "shown", label = "Shown" }, { id = "mine", label = "Hide player" }, { id = "all", label = "Hide all" } },
+		get = function() return session.helldivers end, set = function(v) session.set_helldivers(v) end, default = "shown",
+		help = "Hides this player's Helldiver, or every Helldiver, with armour and weapons, for a picture of the place alone." })
+	page:header("Pose")
+	local poses = {}
+	for _, p in ipairs(helldiver.poses(helldiver.unit)) do poses[#poses + 1] = { id = p.id, label = p.label } end
+	page:choice("Pose", { choices = poses, get = function() return helldiver.get("pose") end,
+		set = function(v) return session.pose(v) end, default = "game",
+		help = "One of the game's own Helldiver animations. The game runs for the pose time to blend it in, then stops again." })
+	page:slider("Pose time", { min = 0.1, max = 3, step = 0.1, format = "%.1f s", default = helldiver.DEFAULTS.pose_time,
+		get = function() return helldiver.get("pose_time") end, set = function(v) helldiver.set("pose_time", v) end,
+		help = "How long the game runs after a pose is picked, which sets how far into the animation it stops." })
+	page:action("Play pose again", function() return session.pose(helldiver.get("pose")) end,
+		{ help = "Starts the pose over and runs it for the pose time, to stop at another moment of it." })
+	page:header("Size and place")
+	page:slider("Size", hd("scale", { min = 0.25, max = 3, step = 0.05, format = function(v) return string.format("%d%%", v * 100 + 0.5) end,
+		help = "How big the Helldiver is, with armour and weapons." }))
+	page:slider("Move sideways", hd("side", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver to the right, or to the left below 0." }))
+	page:slider("Move forward", hd("forward", { min = -5, max = 5, step = 0.1, format = "%.1f m", help = "Moves the Helldiver the way it faces, or back below 0." }))
+	page:slider("Raise", hd("up", { min = -2, max = 5, step = 0.05, format = "%.2f m", help = "Lifts the Helldiver off the ground, or sinks it below 0." }))
+	page:slider("Turn", hd("turn", { min = -180, max = 180, step = 5, format = "%d deg", help = "Turns the Helldiver on the spot." }))
+	page:action("Reset Helldiver", function()
+		local pose_time = helldiver.get("pose_time")
+		helldiver.reset()
+		helldiver.set("pose_time", pose_time)
+		page:refresh()
+	end, { help = "Size, place and turn back to where the Helldiver stood. The pose stays." })
+end
+
 local function light_page(l)
 	return function(page)
 		page:choice("Color", { choices = COLORS, get = function() return l.color end, set = function(v) l.color = v lights.update(l) end, default = "warm",
@@ -200,7 +257,7 @@ local function scene_tab(page)
 	local sky_off = "Turn on Fix skies in the options of Photo Mode in Obsidian, then start the game again."
 	page:choice("Sky", { choices = { { id = "off", label = "Off" }, { id = "auto", label = "Matches the time" }, { id = "day", label = "Day" },
 		{ id = "dawn", label = "Dawn" }, { id = "dusk", label = "Dusk" }, { id = "night", label = "Night" }, { id = "overcast", label = "Overcast" } },
-		get = function() return session.sky end, set = function(v) session.sky = v end, default = "off",
+		get = function() return session.sky end, set = function(v) session.sky = v end, default = "auto",
 		enabled = function()
 			local ok, why = session.supports("sky")
 			if not ok then return false, why end
@@ -215,9 +272,6 @@ local function scene_tab(page)
 			return sky.available(), sky_off
 		end,
 		help = "How bright the sky is." })
-	page:choice("Helldivers", { choices = { { id = "shown", label = "Shown" }, { id = "mine", label = "Hide player" }, { id = "all", label = "Hide all" } },
-		get = function() return session.helldivers end, set = function(v) session.set_helldivers(v) end, default = "shown",
-		help = "Hides this player's Helldiver, or every Helldiver, for a picture of the place alone." })
 end
 
 local function frame_tab(page)
@@ -248,8 +302,8 @@ local function photo_tab(page)
 		session.api.capture.open_folder(folder)
 	end, { help = "Opens the folder with the pictures in the file explorer." })
 	page:header("Music")
-	page:toggle("Ship music", kept("music", { help = "After a while in Photo Mode, plays the music of the ship." }))
-	page:slider("Music delay", kept("music_delay", { min = 0, max = 120, step = 5, format = "%d s", help = "Seconds of silence before the ship music starts." }))
+	page:toggle("Music", kept("music", { help = "After a while in Photo Mode, plays the mission's exploring music. On the ship, the ship's own music comes back." }))
+	page:slider("Music delay", kept("music_delay", { min = 0, max = 120, step = 5, format = "%d s", help = "Seconds of silence before the music starts." }))
 	page:slider("Music level", kept("music_db", { min = -30, max = 0, step = 1, format = "%d dB", help = "How far below the full level the music plays." }))
 	page:header("Controls")
 	page:toggle("Controls overlay", kept("guide", { help = "The camera keys, at the bottom left. Left out of photos." }))
@@ -274,14 +328,18 @@ function M.reset_all()
 	look.reset()
 	look.set("dust", 0)
 	session.caption, session.caption_place, session.caption_size = "", "bottom_left", 40
-	session.sky, session.sky_brightness = "off", 2
+	session.sky, session.sky_brightness = session.default_sky(), 2
+	sky.set_brightness(2)
+	helldiver.reset()
 	if M.panel then M.panel:refresh() end
 	return "All settings reset"
 end
 
--- Tab icons from obsidian.ui's glyphs, the nearest it has to each tab; the tab's name shows over the
--- help lines.
+-- Tab icons drawn from shapes (src/icons.lua) where the API draws them (1.27.0, which also brought
+-- api.world.sun), else the nearest of obsidian.ui's glyphs. The tab's name shows over the help lines.
 function M.make(api)
+	local shapes = api.world.sun ~= nil
+	local function icon(name) return icons.of(name, shapes) end
 	M.panel = api.menu.panel({
 		id = "photo",
 		title = "Photo Mode",
@@ -290,13 +348,15 @@ function M.make(api)
 		buttons = { { glyph = "reset", help = "Reset all settings to the defaults. Placed lights stay.", run = M.reset_all } },
 		on_close = function() session.stop() end,
 		tabs = {
-			{ title = "Camera", icon = "weapons", build = camera_tab },
-			{ title = "Lens", icon = "search", build = lens_tab },
-			{ title = "Look", icon = "editor", build = look_tab },
-			{ title = "Light", icon = "world", build = light_tab },
-			{ title = "Scene", icon = "mission", build = scene_tab },
-			{ title = "Frame", icon = "page", build = frame_tab },
-			{ title = "Photo", icon = "run", build = photo_tab },
+			{ title = "Camera", icon = icon("camera"), build = camera_tab },
+			{ title = "Lens", icon = icon("lens"), build = lens_tab },
+			{ title = "Look", icon = icon("look"), build = look_tab },
+			{ title = "Film", icon = icon("film"), build = film_tab },
+			{ title = "Light", icon = icon("light"), build = light_tab },
+			{ title = "Scene", icon = icon("scene"), build = scene_tab },
+			{ title = "Helldiver", icon = icon("helldiver"), build = helldiver_tab },
+			{ title = "Frame", icon = icon("frame"), build = frame_tab },
+			{ title = "Photo", icon = icon("save"), build = photo_tab },
 		},
 	})
 	return M.panel

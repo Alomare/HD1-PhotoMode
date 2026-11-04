@@ -9,6 +9,7 @@ local sky = obsidian.module("src/sky")
 local overlay = obsidian.module("src/overlay")
 local music = obsidian.module("src/music")
 local gizmo = obsidian.module("src/gizmo")
+local helldiver = obsidian.module("src/helldiver")
 
 local M = {
 	active = false, api = nil, panel = nil, cam = nil, anchor = nil, pose = nil, alone = false,
@@ -232,6 +233,9 @@ function M.start()
 	M.music_time, M.music_started = 0, false
 	M.controls_hidden, M.sky_warned = false, false
 	M.helldivers, M.flashlight, M.hidden = "shown", false, {}
+	M.sky = M.default_sky()
+	M.sky_brightness = 2
+	helldiver.begin(api.game.my_unit())
 	if M.panel then M.panel:open(1) end
 	return true
 end
@@ -268,6 +272,7 @@ function M.stop()
 	mute(false)
 	pcall(music.stop)
 	pcall(api.music.resume)
+	pcall(helldiver.restore, api)
 	M.set_looking(false)
 	gizmo.selected, gizmo.drag = nil, nil
 	pcall(api.world.time_scale, 1)
@@ -326,6 +331,12 @@ local function hour_now()
 	local level = type(st) == "table" and st.generated_level
 	local name = level and level.shading_environment_setting
 	return ({ dawn = 6.5, day = 12, dusk = 18, night = 0 })[name] or 12
+end
+
+-- The sky Photo Mode opens with: the one matching the time, where the mod's skies are loaded.
+function M.default_sky()
+	if M.supports("sky") and sky.available() then return "auto" end
+	return "off"
 end
 
 function M.sky_name()
@@ -416,6 +427,9 @@ function M.frame(dt)
 		if chest then focus = math.max(0.5, camera.depth_of(pose, chest)) end
 	end
 	look.apply(api, focus)
+	helldiver.apply(api)
+	M.settle_pose(dt)
+	M.flare_at = M.sun_on_screen(pose)
 	if settings.get("music") and not M.music_started then
 		M.music_time = M.music_time + dt
 		if M.music_time >= settings.get("music_delay") then
@@ -424,7 +438,7 @@ function M.frame(dt)
 			if M.place == "ship" then api.music.resume() else music.start(settings.get("music_db")) end
 		end
 	end
-	music.tick()
+	music.tick(dt)
 	-- The left mouse button in the picture: the lights' markers and handles, and focus by double click.
 	local m = M.mouse_now
 	if m and not M.controls_hidden then
@@ -434,6 +448,45 @@ function M.frame(dt)
 			mouse = { x = m.cursor.x, y = m.cursor.y, held = m.left, pressed = m.left_pressed },
 			on_focus = M.focus_at_cursor })
 	end
+end
+
+-- A pose blends in while the game runs for a moment, then the game stops again at the speed picked.
+function M.settle_pose(dt)
+	if helldiver.settle <= 0 then return end
+	if not M.settling then
+		M.settling = true
+		if M.alone then M.api.world.time_scale(1) end
+	end
+	helldiver.settle = helldiver.settle - dt
+	if helldiver.settle <= 0 then
+		M.settling = false
+		if M.alone then M.api.world.time_scale(settings.get("time")) end
+	end
+end
+
+-- Sends a pose. Answers a line for the panel when it didn't go.
+function M.pose(id)
+	local ok, why = helldiver.pose(id)
+	if ok then return nil end
+	if why == "no_helldiver" then return "No Helldiver to pose." end
+	return "The Helldiver can't take that pose here."
+end
+
+-- Where the sun is on screen for the lens flare, or nil: off, behind the camera, or behind something.
+function M.sun_on_screen(pose)
+	if (look.get("flare") or 0) <= 0 or not pose then return nil end
+	local api = M.api
+	local dir = look.sun_dir() or (api.world.sun and api.world.sun())
+	if not dir or dir.z < -0.02 then return nil end
+	local f = camera.forward(pose.yaw, pose.pitch)
+	if f.x * dir.x + f.y * dir.y + f.z * dir.z <= 0.05 then return nil end
+	local p = pose.position
+	local x, y = api.world.to_screen({ x = p.x + dir.x * 800, y = p.y + dir.y * 800, z = p.z + dir.z * 800 })
+	if not x then return nil end
+	local hit = api.world.raycast({ x = p.x + dir.x * 0.5, y = p.y + dir.y * 0.5, z = p.z + dir.z * 0.5 },
+		{ x = p.x + dir.x * 400, y = p.y + dir.y * 400, z = p.z + dir.z * 400 })
+	if hit then return nil end
+	return { x = x, y = y }
 end
 
 -- Focus on what's under the cursor: depth of field on, at that distance.
@@ -471,7 +524,13 @@ function M.view()
 			{ keys = { "P" }, label = "Take photo" }, { keys = { "H" }, label = "Hide controls" }, { keys = { "F7" }, label = "Exit" },
 		}
 	end
+	local film = nil
+	if (look.get("grain") or 0) > 0 or (look.get("flare") or 0) > 0 or (look.get("leak") or 0) > 0 then
+		film = { grain = look.get("grain"), grain_type = look.get("grain_type"), grain_size = look.get("grain_size"), flare = look.get("flare"),
+			flare_at = M.flare_at, leak = look.get("leak"), leak_rgb = look.color(look.get("leak_color")) }
+	end
 	return {
+		film = film,
 		tint = look.color(look.get("tint_color")), tint_amount = look.state.tint or 0, aspect = settings.get("aspect"), bars = settings.get("bars"),
 		grid = settings.get("grid"), caption = M.caption, caption_place = M.caption_place, caption_size = M.caption_size, guide = guide,
 		capturing = M.api.capture.busy(), markers = not M.controls_hidden and { lights = lights, pose = M.pose, to_screen = M.api.world.to_screen } or nil,

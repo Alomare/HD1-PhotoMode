@@ -15,6 +15,99 @@ M.GRIDS = {
 }
 M.CAPTION_PLACES = { { id = "bottom_left", label = "Bottom left" }, { id = "bottom", label = "Bottom" }, { id = "top_left", label = "Top left" } }
 
+-- Film effects, drawn over the picture and kept in photos. The game's shaders have no grain, flare or
+-- chromatic aberration (none of those names are in its render bundle), so these are shapes over the
+-- screen: specks for the grain, rings and a streak along the line from the sun through the middle of
+-- the screen for the flare, and soft discs of color from a corner for the light leak.
+M.GRAIN_MAX = 5000   -- specks on a 1920 by 1080 screen at full grain
+M.FLARE_GHOSTS = {   -- along the line from the sun (0) through the middle (1): where, how big, color
+	{ t = 0.35, r = 34, c = { 255, 210, 150 }, a = 26, hex = true },
+	{ t = 0.62, r = 16, c = { 180, 220, 255 }, a = 34 },
+	{ t = 0.9, r = 52, c = { 150, 255, 190 }, a = 14, hex = true },
+	{ t = 1.18, r = 22, c = { 255, 170, 120 }, a = 30 },
+	{ t = 1.45, r = 80, c = { 170, 150, 255 }, a = 11, hex = true },
+	{ t = 1.8, r = 12, c = { 255, 255, 255 }, a = 36 },
+}
+
+local function disc(cx, cy, r, sides, turn)
+	local out = {}
+	for i = 0, sides - 1 do
+		local a = (turn or 0) + i * 2 * math.pi / sides
+		out[#out + 1] = cx + r * math.cos(a)
+		out[#out + 1] = cy + r * math.sin(a)
+	end
+	return out
+end
+
+function M.grain_count(amount, w, h)
+	return math.floor(math.min(1, amount) * M.GRAIN_MAX * (w * h) / (1920 * 1080) + 0.5)
+end
+
+function M.draw_grain(kit, film, w, h, s)
+	local n = M.grain_count(film.grain or 0, w, h)
+	if n <= 0 then return 0 end
+	local size = math.max(1, (film.grain_size or 1.5) * s)
+	local strength = math.min(1, film.grain)
+	local random = math.random
+	for _ = 1, n do
+		local x, y = random() * w, random() * h
+		-- About the middle more often than the ends, as grain spreads.
+		local v = (random() + random() + random()) / 3
+		local alpha = (40 + 120 * math.abs(v - 0.5) * 2) * strength
+		if film.grain_type == "color" then
+			local pick = random(3)
+			local c = { 60, 60, 60 }
+			c[pick] = 255
+			kit:rect(x, y, size, size, { c[1], c[2], c[3], alpha })
+		else
+			local g = v > 0.5 and 255 or 0
+			kit:rect(x, y, size, size, { g, g, g, alpha })
+		end
+	end
+	return n
+end
+
+-- The flare from a point on screen (the sun), fading as the point leaves the screen.
+function M.draw_flare(kit, film, w, h, s)
+	local f = film.flare_at
+	if not f or (film.flare or 0) <= 0 then return false end
+	local margin = 0.25 * w
+	local outside = math.max(0, -f.x, f.x - w, -f.y, f.y - h)
+	local k = math.min(1, film.flare) * math.max(0, 1 - outside / margin)
+	if k <= 0 then return false end
+	local warm = { 255, 236, 205 }
+	for _, g in ipairs({ { 150, 18 }, { 70, 40 }, { 26, 120 } }) do
+		kit:poly(disc(f.x, f.y, g[1] * s, 20), { warm[1], warm[2], warm[3], g[2] * k })
+	end
+	-- A streak across, as a wide lens throws.
+	kit:rect(f.x - 520 * s, f.y - 1.5 * s, 1040 * s, 3 * s, { 255, 240, 220, 70 * k })
+	kit:rect(f.x - 260 * s, f.y - 0.75 * s, 520 * s, 1.5 * s, { 255, 255, 255, 110 * k })
+	local cx, cy = w / 2, h / 2
+	for _, ghost in ipairs(M.FLARE_GHOSTS) do
+		local gx, gy = f.x + (cx - f.x) * ghost.t, f.y + (cy - f.y) * ghost.t
+		kit:poly(disc(gx, gy, ghost.r * s, ghost.hex and 6 or 16, ghost.hex and math.pi / 6 or 0),
+			{ ghost.c[1], ghost.c[2], ghost.c[3], ghost.a * k })
+	end
+	return true
+end
+
+-- Light spilling in from the top left corner, and less from the bottom right.
+function M.draw_leak(kit, film, w, h, s)
+	local amount = math.min(1, film.leak or 0)
+	if amount <= 0 then return false end
+	local c = film.leak_rgb or { 1, 0.7, 0.3 }
+	local r, g, b = c[1] * 255, c[2] * 255, c[3] * 255
+	for i = 1, 6 do
+		local radius = h * (1.05 - i * 0.13)
+		kit:poly(disc(-0.05 * w, h * 1.05, radius, 28), { r, g, b, 22 * amount })
+	end
+	for i = 1, 4 do
+		local radius = h * (0.55 - i * 0.1)
+		kit:poly(disc(w * 1.04, -0.04 * h, radius, 24), { r, g, b, 14 * amount })
+	end
+	return true
+end
+
 local LAYER = 600
 local WHITE, SHADOW, GUIDE = { 255, 255, 255, 255 }, { 0, 0, 0, 170 }, { 255, 255, 255, 110 }
 
@@ -57,7 +150,8 @@ local function line(kit, ax, ay, bx, by, width, c)
 	kit:poly({ ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny }, c)
 end
 
--- view: { tint = { r, g, b } 0 to 1, tint_amount, aspect, bars, grid, caption, caption_place,
+-- view: { tint = { r, g, b } 0 to 1, tint_amount, film = { grain, grain_type, grain_size, flare,
+-- flare_at = { x, y } or nil, leak, leak_rgb }, aspect, bars, grid, caption, caption_place,
 -- caption_size, guide = { lines }, capturing, panel_left (x where an open panel starts, or nil) }.
 function M.draw(view, dt)
 	local kit = M.kit
@@ -68,6 +162,11 @@ function M.draw(view, dt)
 	if view.tint and (view.tint_amount or 0) > 0 then
 		local t = view.tint
 		kit:rect(0, 0, w, h, { t[1] * 255, t[2] * 255, t[3] * 255, math.min(1, view.tint_amount) * 255 })
+	end
+	if view.film then
+		M.draw_leak(kit, view.film, w, h, s)
+		M.draw_flare(kit, view.film, w, h, s)
+		M.draw_grain(kit, view.film, w, h, s)
 	end
 	local fx, fy, fw, fh = M.frame(w, h, M.ratio_of(view.aspect))
 	if fw < w or fh < h then

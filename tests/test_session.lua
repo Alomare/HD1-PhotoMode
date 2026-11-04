@@ -135,29 +135,55 @@ test("photo_mode_opens_only_in_a_mission", function()
 	eq(rec.taken, nil)
 end)
 
-test("the_ship_music_loads_then_plays_after_its_delay_in_a_world_that_never_pauses", function()
+test("the_exploring_music_plays_after_its_delay_in_a_sound_world_of_its_own", function()
 	local session, rec = setup()
-	local online, events = false, {}
-	rawset(_G, "Boot", { brightness_world = "screen world", package_manager = {
-		is_package_online = function() return online end, load_package = function(_, name) rec.loaded = name end } })
-	rawset(_G, "World", { timpani_world = function(w) return w .. " sound" end })
-	rawset(_G, "TimpaniWorld", { LISTENER_2D = 2, has_event = function(_, e) return e == "music_bridge" end,
+	local events, updates, released = {}, 0, nil
+	rawset(_G, "Application", { DISABLE_PHYSICS = 2, new_world = function(flag) rec.world_flag = flag return "own world" end,
+		release_world = function(w) released = w end, resolution = function() return 1920, 1080 end })
+	rawset(_G, "World", { timpani_world = function(w) return w .. " sound" end, update = function() updates = updates + 1 end })
+	rawset(_G, "TimpaniWorld", { LISTENER_2D = 2, has_event = function(_, e) return e == "music_threat" end,
 		trigger_event = function(w, e) events[#events + 1] = { w, e } return #events end,
 		set_parameter = function(_, id, k, v) rec.music_volume = v end, is_playing = function() return true end,
 		set_listeners = function() end, set_listener_mode = function() end, stop = function(_, id) rec.stopped = id end })
 	session.start()
-	for _ = 1, 10 do session.frame(1) end
-	eq(rec.loaded, nil, "quiet at first")
-	for _ = 1, 11 do session.frame(1) end
-	eq(rec.loaded, "resource_packages/menu", "the ship's package")
-	eq(#events, 0, "waits for it")
-	online = true
-	session.frame(0.016)
-	eq(events[1][1], "screen world sound", "in the screen world's sound")
-	eq(events[1][2], "music_bridge")
+	for _ = 1, 19 do session.frame(1) end
+	eq(#events, 0, "quiet at first")
+	session.frame(1.5)
+	eq(rec.world_flag, 2, "a world with sound and no physics")
+	eq(events[1][1], "own world sound")
+	eq(events[1][2], "music_threat", "the mission's exploring track")
 	near(rec.music_volume, 10 ^ (-6 / 20), "-6 dB", 1e-6)
+	session.frame(0.016)
+	eq(updates >= 1, true, "the world moves on while the game is stopped")
 	session.stop()
 	eq(rec.stopped, 1)
+	eq(released, "own world", "and goes away after")
+end)
+
+test("the_sky_opens_matching_the_time_where_skies_are_loaded", function()
+	local session = setup()
+	session.start()
+	eq(session.sky, "auto")
+	session.stop()
+	OPTIONS.fix_sky = false
+	session.start()
+	eq(session.sky, "off", "no skies without Fix skies")
+	session.stop()
+end)
+
+test("light_numbers_start_again_once_the_lights_are_gone", function()
+	local session = setup()
+	local lights = obsidian.module("src/lights")
+	session.start()
+	local a = lights.add(session.api, { x = 0, y = 0, z = 0 })
+	local b = lights.add(session.api, { x = 1, y = 0, z = 0 })
+	eq(a.number, 1)
+	eq(b.number, 2)
+	lights.remove(a)
+	eq(lights.add(session.api, { x = 2, y = 0, z = 0 }).number, 1, "the free number")
+	lights.clear()
+	eq(lights.add(session.api, { x = 3, y = 0, z = 0 }).number, 1, "from 1 after a wipe")
+	session.stop()
 end)
 
 test("a_picture_is_cut_to_the_frame_or_keeps_its_bars", function()

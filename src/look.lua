@@ -45,14 +45,20 @@ M.FILTERS = {
 	{ id = "toxic", label = "Toxic", set = { fog = "haze", fog_color = "green", fill = 0.5, tint = 0.12, tint_color = "green" } },
 	{ id = "ember", label = "Ember", set = { fog = "haze", fog_color = "red", sun = true, sun_color = "sunset", sun_power = 5, sun_height = 8, tint = 0.08, tint_color = "red" } },
 	{ id = "vivid", label = "Vivid", set = { exposure = 1.6, bloom = 0.25, glow = 2, grading = true } },
+	{ id = "film", label = "Old film", set = { grain = 0.45, grain_type = "mono", leak = 0.35, leak_color = "amber", vignette = 0.7, tint = 0.06, tint_color = "warm" } },
+	{ id = "sunlit", label = "Sunlit", set = { flare = 0.8, exposure = 1.7, bloom = 0.15, grain = 0.15, grain_type = "color" } },
 }
+
+-- Film grain: specks of grey, or of color, over the picture.
+M.GRAINS = { { id = "mono", label = "Mono" }, { id = "color", label = "Color" } }
 
 -- The values, nil while the planet's own shows.
 local FIELDS = { "exposure", "vignette", "bloom", "glow", "clouds", "dust", "grading", "fog", "fog_color", "sun", "sun_az", "sun_height",
-	"sun_color", "sun_power", "fill", "time", "tint", "tint_color" }
+	"sun_color", "sun_power", "fill", "time", "tint", "tint_color", "grain", "grain_type", "grain_size", "flare", "leak", "leak_color" }
 
 M.DEFAULTS = { exposure = 1.5, vignette = 0.5, bloom = 0.2, glow = 1, clouds = 0.5, dust = 0.5, grading = true, fog = "planet", fog_color = "white",
 	sun = false, sun_az = 135, sun_height = 35, sun_color = "white", sun_power = 5, fill = 0.5, time = 12, tint = 0, tint_color = "warm",
+	grain = 0, grain_type = "mono", grain_size = 1.5, flare = 0, leak = 0, leak_color = "warm",
 	dof = false, focus = 12, depth = 6, blur = 0.7, focus_player = true }
 
 M.state = {}
@@ -109,6 +115,13 @@ function M.sky_of(hour)
 end
 
 local function scaled(rgb, s) return { rgb[1] * s, rgb[2] * s, rgb[3] * s } end
+
+-- Toward the sun set with Sun position, as a unit vector, or nil while the planet's sun shows.
+function M.sun_dir()
+	if not M.state.sun then return nil end
+	local az, h = math.rad(M.get("sun_az")), math.rad(M.get("sun_height"))
+	return { x = math.sin(az) * math.cos(h), y = math.cos(az) * math.cos(h), z = math.sin(h) }
+end
 
 -- What the state asks of api.world.shading, by name: { kind, value }.
 function M.wanted(focus_override)
