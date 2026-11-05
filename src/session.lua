@@ -113,7 +113,13 @@ local last_cursor = nil
 -- What the keys, the mouse and a pad ask of the camera this frame.
 function M.read_input(dt)
 	local input = { move = { x = 0, y = 0, z = 0 }, look = { x = 0, y = 0 }, zoom = 0, turn = 0, roll = 0 }
-	if (M.panel and M.panel:typing()) or M.locked then return input end
+	if M.locked then return input end
+	-- A number typed into the panel takes no letters, so the camera keeps moving. Obsidian API before
+	-- 1.29.2 doesn't say what is typed, and then every key stays with the panel.
+	if M.panel then
+		local typing, kind = M.panel:typing()
+		if typing and kind ~= "number" then return input end
+	end
 	local mv = input.move
 	if held("forward") then mv.y = mv.y + 1 end
 	if held("back") then mv.y = mv.y - 1 end

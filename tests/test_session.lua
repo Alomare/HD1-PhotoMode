@@ -216,6 +216,23 @@ test("the_keys_move_the_camera", function()
 	eq(session.cam.position.z > before, true, "E rises")
 end)
 
+test("the_keys_move_the_camera_while_a_number_is_typed", function()
+	local session = setup()
+	session.start()
+	obsidian.module("src/settings").set("smoothing", 0)
+	local function moved(answer)
+		function session.panel:typing() return answer() end
+		local before = session.cam.position.z
+		KEYS_DOWN = { e = true }
+		session.frame(1)
+		KEYS_DOWN = nil
+		return session.cam.position.z > before
+	end
+	eq(moved(function() return true, "number" end), true, "a number takes no letters")
+	eq(moved(function() return true, "text" end), false, "text takes every key")
+	eq(moved(function() return true end), false, "an older API says nothing of the kind")
+end)
+
 test("the_sky_waits_for_the_option", function()
 	local session, rec = setup()
 	OPTIONS.fix_sky = false
