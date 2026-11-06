@@ -428,6 +428,14 @@ function M.frame(dt)
 	if not M.active then return end
 	local api = M.api
 	if where(api) ~= M.place then return M.stop() end
+	-- Someone joined: the game runs again, as when Photo Mode opens with company, or this game would
+	-- part from theirs (Obsidian API keeps a stopped game stopped until the screen changes).
+	if M.alone and not api.game.alone() then
+		M.alone, M.settling = false, false
+		pcall(api.world.time_scale, 1)
+		toast("A player joined: the game keeps running.")
+		if M.panel and type(M.panel.refresh) == "function" then pcall(M.panel.refresh, M.panel) end
+	end
 	local input = M.read_input(dt)
 	local c = M.cam
 	local pose = camera.update(c, input, dt, { speed = settings.get("move_speed"), smoothing = settings.get("smoothing"),

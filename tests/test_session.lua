@@ -131,6 +131,26 @@ test("with_other_players_the_game_runs_on", function()
 	eq(#rec.toasts, 1, "the player is told")
 end)
 
+test("a_player_joining_lets_the_stopped_game_run_again", function()
+	local opts = {}
+	local session, rec = setup(opts)
+	session.start()
+	eq(session.status(), "PAUSED")
+	opts.alone = false
+	local before = #rec.calls
+	session.frame(0.016)
+	local runs = false
+	for i = before + 1, #rec.calls do runs = runs or (rec.calls[i][1] == "time" and rec.calls[i][2] == 1) end
+	eq(runs, true, "the game runs")
+	eq(session.alone, false)
+	eq(session.status(), "LIVE")
+	eq(rec.toasts[#rec.toasts], "A player joined: the game keeps running.")
+	local toasts = #rec.toasts
+	session.frame(0.016)
+	eq(#rec.toasts, toasts, "said once")
+	session.stop()
+end)
+
 test("photo_mode_opens_only_in_a_mission", function()
 	local session, rec = setup({ state = "menu" })
 	eq(session.start(), false)
