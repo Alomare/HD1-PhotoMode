@@ -213,10 +213,20 @@ local function read_planet(api)
 	end
 end
 
+-- Third Person Camera moves the view itself every frame, so the camera Photo Mode takes would never
+-- reach the screen. HD2CAM_OVERLAY is the global that mod sets when the game loads it.
+local function third_person_camera()
+	return rawget(_G, "HD2CAM_OVERLAY") ~= nil
+end
+
 -- Opens Photo Mode. Answers true, or false and the reason it gave the player.
 function M.start()
 	local api = M.api
 	if M.active then return true end
+	if third_person_camera() then
+		toast("Photo Mode is not available with Third Person Camera.")
+		return false, "third_person_camera"
+	end
 	local place = where(api)
 	if not place then
 		toast("Photo Mode is available in missions and on the ship.")
