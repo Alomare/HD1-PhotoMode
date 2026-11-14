@@ -6,7 +6,7 @@
     "en": "Photo Mode"
   },
   "description": {
-    "en": "Stops a mission, or the ship, and clears the screen for pictures: a free, orbiting or isometric camera, lens and look controls with film grain, the time of day, placed lights, a sky over the level, Helldiver poses, parts and placement, and pictures saved to the Pictures folder. Opens with F7 or from the pause menu."
+    "en": "Stops the game and frees the camera for pictures."
   },
   "authors": [
     "Alomare"
