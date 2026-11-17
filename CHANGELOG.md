@@ -4,7 +4,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 ## 1.6.4
 
-- A game stopped for pictures runs again when another player joins, as with other players in the lobby from the start.
+- Changed: a shorter description in Obsidian and the store.
+- Fixed: a game stopped for pictures runs again when another player joins, as with other players in the lobby from the start.
 - Fixed: Photo Mode stays closed with Third Person Camera installed and says so, as that mod keeps the camera.
 
 ## 1.6.3
